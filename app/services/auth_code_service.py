@@ -95,7 +95,7 @@ class AuthCodeService:
             print(f"🔍 AuthCodeService: Code {code} not found in database")
             return None
         
-        print(f"🔍 AuthCodeService: Code details - used={auth_code.used}, expires_at={auth_code.expires_at}")
+        print(f"🔍 AuthCodeService: Code details - used={auth_code.used}, has_user_data={auth_code.telegram_user_data is not None}, expires_at={auth_code.expires_at}")
         
         # Get current time in Jakarta timezone
         now = datetime.now(settings.timezone)
@@ -112,7 +112,13 @@ class AuthCodeService:
         
         # Check if code is already used
         if auth_code.used:
-            print(f"🔍 AuthCodeService: Code already used")
+            # If code has user data, it was used by bot - allow verification
+            if auth_code.telegram_user_data:
+                print(f"🔍 AuthCodeService: Code used but has user data - allowing verification")
+                auth_code.expires_at = expires_at_jakarta
+                return auth_code
+            # If code is used but has no user data, reject it
+            print(f"🔍 AuthCodeService: Code already used without user data")
             return None
         
         # Code is valid - update expires_at to Jakarta timezone for consistency
