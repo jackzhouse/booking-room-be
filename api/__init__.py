@@ -1,3 +1,0 @@
-"""
-Vercel Serverless API Package
-"""
