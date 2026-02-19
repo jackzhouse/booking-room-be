@@ -163,3 +163,38 @@ async def toggle_room_status(
         "name": room.name,
         "is_active": room.is_active
     }
+
+
+@router.delete("/{room_id}")
+async def delete_room(
+    room_id: str,
+    current_user: User = Depends(get_current_admin_user)
+):
+    """
+    Delete a room (Admin only).
+    Note: This will also cancel all active bookings for this room.
+    """
+    room = await Room.get(room_id)
+    if not room:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Room not found"
+        )
+    
+    # Cancel all active bookings for this room
+    bookings = await Booking.find({
+        "room_id": ObjectId(room_id),
+        "status": "active"
+    }).to_list()
+    
+    for booking in bookings:
+        booking.status = "cancelled"
+        await booking.save()
+    
+    # Delete room
+    await room.delete()
+    
+    return {
+        "message": f"Room '{room.name}' deleted successfully",
+        "cancelled_bookings": len(bookings)
+    }
