@@ -93,10 +93,9 @@ async def telegram_webhook(token: str, request: Request):
     
     # Parse update from request
     data = await request.json()
-    update = Update.de_json(data, None)
     
-    # Process the update
-    await handle_webhook_update(update, None)
+    # Process the update (handler will get bot instance)
+    await handle_webhook_update(data, None)
     
     return {"status": "ok"}
 

@@ -58,12 +58,13 @@ async def stop_application():
         application_started = False
 
 
-async def handle_webhook_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def handle_webhook_update(data: dict, context: ContextTypes.DEFAULT_TYPE):
     """
     Handle incoming webhook updates from Telegram.
     This function is called by FastAPI when Telegram sends updates via webhook.
     """
     app = await get_application()
+    update = Update.de_json(data, app.bot)
     await app.process_update(update)
 
 
