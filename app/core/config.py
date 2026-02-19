@@ -5,11 +5,11 @@ from zoneinfo import ZoneInfo
 
 class Settings(BaseSettings):
     # App
-    APP_ENV: str = "development"
+    APP_ENV: str = "production"  # Default to production for Vercel
     SECRET_KEY: str
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRE_MINUTES: int = 10080  # 7 days
-    FRONTEND_URL: str  = "https://localhost:3000"  # URL for the frontend application
+    FRONTEND_URL: str = "https://booking-meeting-flax.vercel.app"  # Production frontend URL
     
     # Timezone
     TIMEZONE: str = "Asia/Jakarta"  # Default timezone for the application

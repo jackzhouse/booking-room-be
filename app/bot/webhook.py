@@ -1,7 +1,6 @@
-import asyncio
 import logging
 from telegram import Update
-from telegram.ext import Application, CommandHandler
+from telegram.ext import Application, CommandHandler, ContextTypes
 
 from app.core.config import settings
 from app.bot.handlers.start import start, help_command
@@ -37,42 +36,48 @@ application.add_handler(cancel_handler)
 application.add_handler(authorize_handler)
 
 
-async def start_polling():
+async def handle_webhook_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
-    Start the bot in polling mode.
-    This is used for local development without webhooks.
+    Handle incoming webhook updates from Telegram.
+    This function is called by FastAPI when Telegram sends updates via webhook.
     """
+    await application.initialize()
+    await application.process_update(update)
+    await application.shutdown()
+
+
+async def set_webhook():
+    """
+    Set the webhook for the Telegram bot.
+    This should be called during application startup.
+    """
+    webhook_url = settings.webhook_url
+    logger.info(f"🔗 Setting Telegram webhook to: {webhook_url}")
+    
     try:
-        logger.info("🚀 Starting Telegram bot in polling mode...")
         await application.initialize()
-        await application.start()
-        await application.updater.start_polling(
+        await application.bot.set_webhook(
+            url=webhook_url,
             drop_pending_updates=True,
             allowed_updates=["message", "callback_query"]
         )
-        logger.info("✅ Telegram bot started successfully in polling mode")
-        logger.info("📡 Bot is now listening for updates...")
-        
-        # Keep the bot running
-        while True:
-            await asyncio.sleep(1)
-            
-    except Exception as e:
-        logger.error(f"❌ Error starting bot: {str(e)}")
-        raise
-    finally:
-        logger.info("🔌 Shutting down bot...")
-        await application.updater.stop()
-        await application.stop()
+        logger.info("✅ Telegram webhook set successfully")
         await application.shutdown()
+    except Exception as e:
+        logger.error(f"❌ Error setting webhook: {str(e)}")
+        raise
 
 
-async def stop_polling():
+async def delete_webhook():
     """
-    Stop the bot polling.
+    Delete the webhook for the Telegram bot.
+    This should be called during application shutdown or when switching to polling mode.
     """
-    if application.updater and application.updater.running:
-        await application.updater.stop()
-    await application.stop()
-    await application.shutdown()
-    logger.info("🔌 Bot polling stopped")
+    try:
+        await application.initialize()
+        await application.bot.delete_webhook()
+        logger.info("✅ Telegram webhook deleted successfully")
+        await application.shutdown()
+    except Exception as e:
+        logger.error(f"❌ Error deleting webhook: {str(e)}")
+        raise

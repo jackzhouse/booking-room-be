@@ -7,7 +7,9 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.database import connect_to_mongo, close_mongo_connection, init_beanie_models
 from app.api.v1 import auth, bookings, rooms, admin
-from app.bot.webhook import start_polling, stop_polling
+from app.bot.webhook import set_webhook, delete_webhook, handle_webhook_update
+from telegram import Update
+from fastapi import Request
 
 # Import all models for Beanie initialization
 from app.models.user import User
@@ -35,13 +37,12 @@ async def lifespan(app: FastAPI):
     # Initialize default settings if not exist
     await initialize_default_settings()
     
-    # Start Telegram bot in polling mode (background task)
-    bot_task = None
+    # Set Telegram webhook (for Vercel deployment)
     try:
-        bot_task = asyncio.create_task(start_polling())
-        print("✅ Telegram bot polling started in background")
+        await set_webhook()
+        print("✅ Telegram webhook configured successfully")
     except Exception as e:
-        print(f"⚠️  Warning: Could not start Telegram bot: {str(e)}")
+        print(f"⚠️  Warning: Could not set Telegram webhook: {str(e)}")
         print("   Bot features will be limited until a valid BOT_TOKEN is provided.")
     
     yield
@@ -49,18 +50,11 @@ async def lifespan(app: FastAPI):
     # Shutdown
     await close_mongo_connection()
     
-    # Stop bot polling
-    if bot_task:
-        try:
-            await stop_polling()
-            if not bot_task.done():
-                bot_task.cancel()
-                try:
-                    await bot_task
-                except asyncio.CancelledError:
-                    pass
-        except Exception as e:
-            print(f"⚠️  Warning: Error stopping bot: {str(e)}")
+    # Delete Telegram webhook
+    try:
+        await delete_webhook()
+    except Exception as e:
+        print(f"⚠️  Warning: Error deleting webhook: {str(e)}")
 
 
 # Create FastAPI application
@@ -85,6 +79,26 @@ app.include_router(auth.router, prefix="/api/v1")
 app.include_router(bookings.router, prefix="/api/v1")
 app.include_router(rooms.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
+
+
+@app.post("/webhook/telegram/{token}")
+async def telegram_webhook(token: str, request: Request):
+    """
+    Telegram webhook endpoint.
+    Receives updates from Telegram and passes them to the bot handler.
+    """
+    # Verify token matches
+    if token != settings.BOT_TOKEN:
+        return {"status": "error", "message": "Invalid token"}
+    
+    # Parse update from request
+    data = await request.json()
+    update = Update.de_json(data, None)
+    
+    # Process the update
+    await handle_webhook_update(update, None)
+    
+    return {"status": "ok"}
 
 
 @app.get("/")
