@@ -1,4 +1,5 @@
 import logging
+import asyncio
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 
@@ -64,7 +65,12 @@ async def handle_webhook_update(data: dict, context: ContextTypes.DEFAULT_TYPE):
     This function is called by FastAPI when Telegram sends updates via webhook.
     """
     app = await get_application()
-    update = Update.de_json(data, app.bot)
+    
+    # Create Update object from JSON data using the application's bot instance
+    bot = app.bot
+    update = Update.de_json(data, bot)
+    
+    # Process the update
     await app.process_update(update)
 
 
