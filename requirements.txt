@@ -9,7 +9,7 @@ beanie==1.28.0
 pymongo>=4.9,<4.10
 
 # Authentication
-python-jose[cryptography]==3.3.0ß
+python-jose[cryptography]==3.3.0
 passlib[bcrypt]==1.7.4
 python-dateutil==2.9.0
 
@@ -17,9 +17,8 @@ python-dateutil==2.9.0
 python-telegram-bot==21.7
 
 # Pydantic & Validation
-pydantic==1.10.8
+pydantic==1.10.18
 email-validator==2.2.0
-typing-extensions==4.5.0
 
 # Utilities
 python-dotenv==1.0.1

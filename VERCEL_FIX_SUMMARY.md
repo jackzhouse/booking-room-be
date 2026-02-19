@@ -6,16 +6,16 @@ This document explains the fixes made to resolve the `pip install -r requirement
 
 The deployment was failing due to several configuration issues:
 
-1. **Incorrect `vercel.json` configuration** - Using deprecated fields and redundant build/install commands
+1. **Incorrect `vercel.json` configuration** - Using deprecated fields and attempting to manually specify build commands
 2. **Development dependencies in production** - Testing and code quality tools were included in production requirements
 3. **Missing Python runtime specification** - Vercel wasn't sure which Python version to use
-4. **Redundant configuration** - Both `buildCommand` and `installCommand` were set to the same value
-5. **Python version mismatch** - `.python-version` was set to 3.11 but uv (Vercel's package installer) requires `==3.12.*`
-6. **Missing ASGI wrapper** - FastAPI apps need Mangum wrapper to work with Vercel's serverless environment
+4. **Python version mismatch** - `.python-version` was set to 3.11 but uv (Vercel's package installer) requires `==3.12.*`
+5. **Missing ASGI wrapper** - FastAPI apps need Mangum wrapper to work with Vercel's serverless environment
+6. **Manual build command conflicts** - Specifying `buildCommand` with `pip install` or `uv pip install` caused conflicts with Vercel's auto-detection. Vercel's Python runtime automatically detects `requirements.txt` and handles dependency installation appropriately when no `buildCommand` is specified.
 
 ## Fixes Applied
 
-### 1. Updated `vercel.json`
+### 1. Updated `vercel.json` (Final Version)
 
 **Before:**
 ```json
@@ -30,16 +30,18 @@ The deployment was failing due to several configuration issues:
 **After:**
 ```json
 {
-  "buildCommand": "pip install -r requirements.txt",
   "outputDirectory": ".",
   "devCommand": "uvicorn app.main:app --reload"
 }
 ```
 
 **Changes:**
-- Simplified configuration to let Vercel auto-detect Python framework
-- Added `devCommand` for local development
-- Removed redundant `installCommand` field
+- Removed `buildCommand` entirely to let Vercel auto-detect and install dependencies
+- Vercel automatically detects `requirements.txt` and handles installation correctly
+- Added `devCommand` for local development workflow
+- Removed deprecated `framework` and `installCommand` fields
+
+**Why this works:** Vercel's Python runtime automatically detects `requirements.txt` and handles dependency installation using the appropriate method for its environment, avoiding conflicts between `pip` and `uv`.
 
 ### 2. Cleaned Up `requirements.txt`
 
