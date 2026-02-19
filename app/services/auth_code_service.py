@@ -1,23 +1,23 @@
 """
 Service for managing authentication codes.
-Stores codes in-memory with expiration tracking.
+Stores codes in MongoDB with expiration tracking.
 """
 from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 import random
 
 from app.core.config import settings
+from app.models.auth_code import AuthCode
 
 
 class AuthCodeService:
     """Service for generating and verifying authentication codes."""
     
     def __init__(self):
-        """Initialize the auth code service."""
-        self.auth_codes: Dict[str, Dict[str, Any]] = {}
+        """Initialize auth code service."""
         self.code_expiry_minutes = 3  # Codes expire after 3 minutes
     
-    def generate_code(self) -> tuple[str, datetime]:
+    async def generate_code(self) -> tuple[str, datetime]:
         """
         Generate a random 6-digit authentication code.
         
@@ -27,26 +27,33 @@ class AuthCodeService:
         # Get current time in Jakarta timezone
         now = datetime.now(settings.timezone)
         
-        # Generate 6-digit random code
-        code = "".join([str(random.randint(0, 9)) for _ in range(6)])
+        # Generate unique 6-digit random code
+        max_attempts = 10
+        for _ in range(max_attempts):
+            code = "".join([str(random.randint(0, 9)) for _ in range(6)])
+            
+            # Check if code already exists
+            existing = await AuthCode.find_one(AuthCode.code == code, used=False)
+            if not existing:
+                break
+        else:
+            raise ValueError("Could not generate unique code after multiple attempts")
         
         # Calculate expiration time
         expires_at = now + timedelta(minutes=self.code_expiry_minutes)
         
-        # Store the code with metadata
-        self.auth_codes[code] = {
-            "code": code,
-            "created_at": now,
-            "expires_at": expires_at,
-            "used": False
-        }
-        
-        # Clean up expired codes periodically
-        self._cleanup_expired_codes()
+        # Store code in database
+        auth_code = AuthCode(
+            code=code,
+            created_at=now,
+            expires_at=expires_at,
+            used=False
+        )
+        await auth_code.insert()
         
         return code, expires_at
     
-    def verify_code(self, code: str) -> Optional[Dict[str, Any]]:
+    async def verify_code(self, code: str) -> Optional[AuthCode]:
         """
         Verify an authentication code.
         
@@ -54,59 +61,52 @@ class AuthCodeService:
             code: The authentication code to verify
             
         Returns:
-            Dict with code data if valid, None otherwise
+            AuthCode object if valid, None otherwise
         """
-        # Clean up expired codes first
-        self._cleanup_expired_codes()
+        # Find code document
+        auth_code = await AuthCode.find_one(AuthCode.code == code)
         
-        # Check if code exists and is not used
-        if code not in self.auth_codes:
+        if not auth_code:
             return None
-        
-        code_data = self.auth_codes[code]
         
         # Check if code is expired
         now = datetime.now(settings.timezone)
-        if now > code_data["expires_at"]:
-            del self.auth_codes[code]
+        if now > auth_code.expires_at:
             return None
         
         # Check if code is already used
-        if code_data["used"]:
+        if auth_code.used:
             return None
         
         # Code is valid
-        return code_data
+        return auth_code
     
-    def mark_code_used(self, code: str, user_data: Dict[str, Any]) -> bool:
+    async def mark_code_used(self, code: str, user_data: Dict[str, Any]) -> bool:
         """
         Mark a code as used and associate it with user data.
         
         Args:
             code: The authentication code
-            user_data: User data to associate with the code
+            user_data: User data to associate with code
             
         Returns:
             True if successfully marked, False otherwise
         """
-        if code not in self.auth_codes:
+        # Find and update code
+        auth_code = await AuthCode.find_one(AuthCode.code == code)
+        
+        if not auth_code:
             return False
         
-        self.auth_codes[code]["used"] = True
-        self.auth_codes[code]["user_data"] = user_data
+        # Update code with user data
+        auth_code.telegram_user_data = user_data
+        auth_code.used = True
+        auth_code.used_at = datetime.now(settings.timezone)
+        
+        await auth_code.save()
         return True
     
-    def _cleanup_expired_codes(self):
-        """Remove expired codes from storage."""
-        now = datetime.now(settings.timezone)
-        expired_codes = [
-            code for code, data in self.auth_codes.items()
-            if now > data["expires_at"]
-        ]
-        for code in expired_codes:
-            del self.auth_codes[code]
-    
-    def get_code_info(self, code: str) -> Optional[Dict[str, Any]]:
+    async def get_code_info(self, code: str) -> Optional[AuthCode]:
         """
         Get information about a code without marking it as used.
         
@@ -114,10 +114,9 @@ class AuthCodeService:
             code: The authentication code
             
         Returns:
-            Dict with code data if exists, None otherwise
+            AuthCode object if exists, None otherwise
         """
-        self._cleanup_expired_codes()
-        return self.auth_codes.get(code)
+        return await AuthCode.find_one(AuthCode.code == code)
 
 
 # Global instance

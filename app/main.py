@@ -17,6 +17,7 @@ from app.models.room import Room
 from app.models.booking import Booking
 from app.models.booking_history import BookingHistory
 from app.models.setting import Setting
+from app.models.auth_code import AuthCode
 
 
 @asynccontextmanager
@@ -31,7 +32,8 @@ async def lifespan(app: FastAPI):
         Room,
         Booking,
         BookingHistory,
-        Setting
+        Setting,
+        AuthCode
     ])
     
     # Initialize default settings if not exist

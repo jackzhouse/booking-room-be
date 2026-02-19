@@ -169,12 +169,12 @@ async def generate_auth_code():
     """
     Generate a new authentication code.
     
-    The frontend can call this to get a 6-digit code that the user
-    can send to the bot via /authorize command.
+    The frontend can call this to get a 6-digit code that user
+    can send to bot via /authorize command.
     
-    Codes expire after 10 minutes.
+    Codes expire after 3 minutes.
     """
-    code, expires_at = auth_code_service.generate_code()
+    code, expires_at = await auth_code_service.generate_code()
     
     # Calculate expires_in (seconds until expiration)
     now = datetime.now(settings.timezone)
@@ -198,7 +198,7 @@ async def verify_auth_code(code: str = Query(..., description="6-digit authentic
     Called by frontend to poll for code verification status.
     Returns pending/verified/expired status and user data if verified.
     """
-    code_data = auth_code_service.verify_code(code)
+    code_data = await auth_code_service.verify_code(code)
     
     if not code_data:
         # Code is invalid, expired, or already used
@@ -209,12 +209,12 @@ async def verify_auth_code(code: str = Query(..., description="6-digit authentic
         )
     
     # Check if code has user data attached (from bot authorization)
-    user_data = code_data.get("user_data")
+    user_data = code_data.telegram_user_data
     
     if not user_data:
         # Code is valid but no user data yet - still pending
         now = datetime.now(settings.timezone)
-        expires_at = code_data.get("expires_at", now)
+        expires_at = code_data.expires_at
         expires_in = int((expires_at - now).total_seconds()) if expires_at > now else 0
         
         return AuthCodeVerifyResponse(
@@ -231,8 +231,8 @@ async def verify_auth_code(code: str = Query(..., description="6-digit authentic
     user = await create_or_update_user(user_data)
     access_token = create_access_token(data={"sub": str(user.id)})
     
-    # Mark code as used
-    auth_code_service.mark_code_used(code, user_data)
+    # Mark code as used (already marked by bot, but ensure it's saved)
+    await auth_code_service.mark_code_used(code, user_data)
     
     # Extract first and last name from full_name
     full_name = user.full_name or ""
@@ -267,16 +267,16 @@ async def verify_code_with_telegram(
     """
     Verify code and associate it with Telegram user data.
     
-    This is called by the bot when user sends /authorize {code} command.
-    The bot provides Telegram user data which gets associated with the code.
+    This is called by bot when user sends /authorize {code} command.
+    The bot provides Telegram user data which gets associated with code.
     
-    On subsequent calls to /verify-code, the user will be authenticated.
+    On subsequent calls to /verify-code, user will be authenticated.
     """
     # Convert to dict
     telegram_user_data = telegram_user.dict()
     
-    # Verify the code exists and is valid
-    code_data = auth_code_service.verify_code(code)
+    # Verify code exists and is valid
+    code_data = await auth_code_service.verify_code(code)
     
     if not code_data:
         # Code is invalid, expired, or already used
@@ -286,8 +286,8 @@ async def verify_code_with_telegram(
             error={"code": "CODE_NOT_FOUND", "message": "Invalid authorization code"}
         )
     
-    # Associate Telegram user data with the code
-    auth_code_service.mark_code_used(code, telegram_user_data)
+    # Associate Telegram user data with code
+    await auth_code_service.mark_code_used(code, telegram_user_data)
     
     # Create or update user
     user = await create_or_update_user(telegram_user_data)
@@ -315,7 +315,7 @@ async def verify_code_with_telegram(
                 is_admin=user.is_admin,
                 is_active=user.is_active
             ),
-            token=access_token
+        token=access_token
         )
     )
 
