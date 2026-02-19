@@ -2,7 +2,7 @@
 Service for managing authentication codes.
 Stores codes in MongoDB with expiration tracking.
 """
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any
 import random
 
@@ -83,9 +83,11 @@ class AuthCodeService:
         now = datetime.now(settings.timezone)
         expires_at = auth_code.expires_at
         
-        # Convert expires_at to timezone-aware if it's naive
+        # MongoDB stores UTC as naive datetime - convert properly
         if expires_at.tzinfo is None:
-            expires_at = expires_at.replace(tzinfo=settings.timezone)
+            # First mark as UTC, then convert to Jakarta timezone
+            expires_at = expires_at.replace(tzinfo=timezone.utc).astimezone(settings.timezone)
+            print(f"🔍 AuthCodeService: Converted UTC {auth_code.expires_at} to Jakarta {expires_at}")
         
         if now > expires_at:
             print(f"🔍 AuthCodeService: Code expired (now={now} > expires_at={expires_at})")

@@ -1,5 +1,5 @@
 from typing import Dict, Any, Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Body
 from bson import ObjectId
 from urllib.parse import urlencode
@@ -215,6 +215,11 @@ async def verify_auth_code(code: str = Query(..., description="6-digit authentic
         # Code is valid but no user data yet - still pending
         now = datetime.now(settings.timezone)
         expires_at = code_data.expires_at
+        
+        # MongoDB stores UTC as naive datetime - convert properly
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc).astimezone(settings.timezone)
+        
         expires_in = int((expires_at - now).total_seconds()) if expires_at > now else 0
         
         return AuthCodeVerifyResponse(
