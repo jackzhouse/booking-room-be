@@ -10,6 +10,24 @@ from app.core.config import settings
 from app.models.auth_code import AuthCode
 
 
+def convert_utc_to_jakarta(dt: datetime) -> datetime:
+    """
+    Convert UTC datetime (naive or aware) to Jakarta timezone.
+    
+    Args:
+        dt: Datetime object (can be naive UTC or aware)
+    
+    Returns:
+        Datetime in Jakarta timezone
+    """
+    if dt.tzinfo is None:
+        # Assume it's UTC and make it aware
+        dt = dt.replace(tzinfo=timezone.utc)
+    
+    # Convert to Jakarta timezone
+    return dt.astimezone(settings.timezone)
+
+
 class AuthCodeService:
     """Service for generating and verifying authentication codes."""
     
@@ -22,7 +40,7 @@ class AuthCodeService:
         Generate a random 6-digit authentication code.
         
         Returns:
-            Tuple of (code, expires_at)
+            Tuple of (code, expires_at in Jakarta timezone)
         """
         # Get current time in Jakarta timezone
         now = datetime.now(settings.timezone)
@@ -43,7 +61,7 @@ class AuthCodeService:
         # Calculate expiration time
         expires_at = now + timedelta(minutes=self.code_expiry_minutes)
         
-        # Store code in database
+        # Store code in database (MongoDB will convert to UTC)
         auth_code = AuthCode(
             code=code,
             created_at=now,
@@ -79,18 +97,17 @@ class AuthCodeService:
         
         print(f"🔍 AuthCodeService: Code details - used={auth_code.used}, expires_at={auth_code.expires_at}")
         
-        # Check if code is expired (ensure both datetimes are timezone-aware)
+        # Get current time in Jakarta timezone
         now = datetime.now(settings.timezone)
-        expires_at = auth_code.expires_at
         
-        # MongoDB stores UTC as naive datetime - convert properly
-        if expires_at.tzinfo is None:
-            # First mark as UTC, then convert to Jakarta timezone
-            expires_at = expires_at.replace(tzinfo=timezone.utc).astimezone(settings.timezone)
-            print(f"🔍 AuthCodeService: Converted UTC {auth_code.expires_at} to Jakarta {expires_at}")
+        # Convert expires_at to Jakarta timezone (MongoDB stores as UTC naive datetime)
+        expires_at_jakarta = convert_utc_to_jakarta(auth_code.expires_at)
         
-        if now > expires_at:
-            print(f"🔍 AuthCodeService: Code expired (now={now} > expires_at={expires_at})")
+        print(f"🔍 AuthCodeService: Current time (Jakarta): {now}, Expires (Jakarta): {expires_at_jakarta}")
+        
+        # Check if code is expired
+        if now > expires_at_jakarta:
+            print(f"🔍 AuthCodeService: Code expired (now={now} > expires_at={expires_at_jakarta})")
             return None
         
         # Check if code is already used
@@ -98,7 +115,8 @@ class AuthCodeService:
             print(f"🔍 AuthCodeService: Code already used")
             return None
         
-        # Code is valid
+        # Code is valid - update expires_at to Jakarta timezone for consistency
+        auth_code.expires_at = expires_at_jakarta
         print(f"🔍 AuthCodeService: Code is valid!")
         return auth_code
     
