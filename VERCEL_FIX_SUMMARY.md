@@ -11,6 +11,7 @@ The deployment was failing due to several configuration issues:
 3. **Missing Python runtime specification** - Vercel wasn't sure which Python version to use
 4. **Redundant configuration** - Both `buildCommand` and `installCommand` were set to the same value
 5. **Python version mismatch** - `.python-version` was set to 3.11 but uv (Vercel's package installer) requires `==3.12.*`
+6. **Missing ASGI wrapper** - FastAPI apps need Mangum wrapper to work with Vercel's serverless environment
 
 ## Fixes Applied
 
@@ -29,33 +30,22 @@ The deployment was failing due to several configuration issues:
 **After:**
 ```json
 {
-  "version": 2,
-  "builds": [
-    {
-      "src": "api/index.py",
-      "use": "@vercel/python"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "api/index.py"
-    }
-  ]
+  "buildCommand": "pip install -r requirements.txt",
+  "outputDirectory": ".",
+  "devCommand": "uvicorn app.main:app --reload"
 }
 ```
 
 **Changes:**
-- Uses Vercel's official Python builder (`@vercel/python`)
-- Defines explicit build configuration
-- Sets up routing to forward all requests to the API handler
-- Removed deprecated `buildCommand` and `installCommand` fields
+- Simplified configuration to let Vercel auto-detect Python framework
+- Added `devCommand` for local development
+- Removed redundant `installCommand` field
 
 ### 2. Cleaned Up `requirements.txt`
 
 **Before:** Included development dependencies (pytest, ruff, black, etc.)
 
-**After:** Only production dependencies
+**After:** Only production dependencies + Mangum for serverless
 ```txt
 # FastAPI & Server
 fastapi==0.115.0
@@ -81,6 +71,9 @@ email-validator==2.2.0
 
 # Utilities
 python-dotenv==1.0.1
+
+# Serverless
+mangum==0.17.0
 ```
 
 **Changes:**
@@ -89,6 +82,7 @@ python-dotenv==1.0.1
 - Removed `httpx==0.27.2`
 - Removed `ruff==0.7.1`
 - Removed `black==24.10.0`
+- Added `mangum==0.17.0` for ASGI serverless compatibility
 
 ### 3. Created `requirements-dev.txt`
 
@@ -120,31 +114,37 @@ Created `.python-version` file to specify Python 3.12:
 
 This ensures Vercel uses the correct Python version and matches uv's requirement of `==3.12.*`.
 
-### 5. Simplified `api/index.py`
+### 5. Updated `api/index.py` with Mangum Wrapper
 
-**Before:** Had commented-out code
+**Before:** Had commented-out code and no ASGI wrapper
 
-**After:** Clean implementation
+**After:** Proper ASGI wrapper for serverless compatibility
 ```python
 """
 Vercel Serverless Entry Point
 This file serves as the entry point for Vercel's serverless functions.
 """
 
+from mangum import Mangum
 from app.main import app
 
-# Vercel's Python runtime expects a callable 'handler'
-handler = app
+# Wrap the FastAPI app with Mangum for serverless compatibility
+handler = Mangum(app)
 ```
+
+**Changes:**
+- Added Mangum import for ASGI-to-serverless adapter
+- Wrapped FastAPI app with Mangum handler
+- Exported as `handler` for Vercel serverless functions
 
 ## Why These Changes Fix the Issue
 
 ### 1. Proper Vercel Configuration
-The updated `vercel.json` uses Vercel's official Python builder which:
-- Automatically detects Python version from `.python-version`
+The updated `vercel.json`:
+- Simplified configuration lets Vercel auto-detect Python framework
+- Added `devCommand` for local development workflow
+- Removed redundant `installCommand` that was causing conflicts
 - Handles pip installation correctly
-- Configures proper routing for serverless functions
-- Eliminates redundant commands that were causing conflicts
 
 ### 2. Reduced Dependencies
 Removing development dependencies:
@@ -158,6 +158,13 @@ The `.python-version` file:
 - Guarantees Python 3.12 is used (matches uv's `==3.12.*` requirement)
 - Matches the version tested during development
 - Prevents version mismatches
+
+### 4. ASGI Wrapper with Mangum
+The Mangum wrapper in `api/index.py`:
+- Converts ASGI app (FastAPI) to serverless-compatible handler
+- Resolves the `TypeError: issubclass() arg 1 must be a class` error
+- Enables FastAPI to work with Vercel's serverless functions
+- Maintains all FastAPI functionality in serverless environment
 
 ## Verification Steps
 
@@ -225,12 +232,21 @@ After deployment:
 2. Verify all dependencies in `requirements.txt` are compatible
 3. Try pinning versions more strictly if needed
 
+### Issue: TypeError: issubclass() arg 1 must be a class
+
+**Solution:**
+1. This error occurs when FastAPI app is not properly wrapped for serverless
+2. Ensure Mangum is installed and imported in `api/index.py`
+3. Verify the handler is wrapped: `handler = Mangum(app)`
+4. This should be resolved with the current implementation
+
 ### Issue: Application crashes on startup
 
 **Solution:**
 1. Verify all environment variables are set
 2. Check MongoDB connection string format
 3. Review Vercel function logs for specific errors
+4. Ensure Mangum is properly wrapping the FastAPI app
 
 ### Issue: Telegram bot not responding
 
