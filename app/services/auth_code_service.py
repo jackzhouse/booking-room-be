@@ -52,6 +52,8 @@ class AuthCodeService:
         )
         await auth_code.insert()
         
+        print(f"✅ AuthCodeService: Generated and saved code: {code} (expires at {expires_at})")
+        
         return code, expires_at
     
     async def verify_code(self, code: str) -> Optional[AuthCode]:
@@ -64,11 +66,18 @@ class AuthCodeService:
         Returns:
             AuthCode object if valid, None otherwise
         """
+        print(f"🔍 AuthCodeService: Searching for code: {code}")
+        
         # Find code document
         auth_code = await AuthCode.find_one(AuthCode.code == code)
         
+        print(f"🔍 AuthCodeService: Found: {auth_code is not None}")
+        
         if not auth_code:
+            print(f"🔍 AuthCodeService: Code {code} not found in database")
             return None
+        
+        print(f"🔍 AuthCodeService: Code details - used={auth_code.used}, expires_at={auth_code.expires_at}")
         
         # Check if code is expired (ensure both datetimes are timezone-aware)
         now = datetime.now(settings.timezone)
@@ -79,13 +88,16 @@ class AuthCodeService:
             expires_at = expires_at.replace(tzinfo=settings.timezone)
         
         if now > expires_at:
+            print(f"🔍 AuthCodeService: Code expired (now={now} > expires_at={expires_at})")
             return None
         
         # Check if code is already used
         if auth_code.used:
+            print(f"🔍 AuthCodeService: Code already used")
             return None
         
         # Code is valid
+        print(f"🔍 AuthCodeService: Code is valid!")
         return auth_code
     
     async def mark_code_used(self, code: str, user_data: Dict[str, Any]) -> bool:
