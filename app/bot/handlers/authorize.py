@@ -70,18 +70,27 @@ async def authorize_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             # Parse response
             result = response.json()
             
-            if response.status_code == 200 and result.get("verified"):
+            # Check if code was verified successfully
+            data = result.get("data", {})
+            is_verified = data.get("status") == "verified" and response.status_code == 200
+            
+            if is_verified:
                 # Success! User is authenticated
-                user_data = result.get("user_data", {})
-                access_token = result.get("access_token")
+                user_info = data.get("user", {})
+                access_token = data.get("token")
+                
+                # Build full name
+                first_name = user_info.get("first_name", "")
+                last_name = user_info.get("last_name", "")
+                full_name = f"{first_name} {last_name}".strip() or "User"
                 
                 # Build success message
                 message = (
                     f"✅ Authorization successful!\n\n"
-                    f"Welcome, {user_data.get('full_name', 'User')}!\n\n"
+                    f"Welcome, {full_name}!\n\n"
                 )
                 
-                if user_data.get("is_admin"):
+                if user_info.get("is_admin"):
                     message += "🔑 You have admin privileges.\n"
                 
                 if access_token:
