@@ -50,11 +50,7 @@ async def lifespan(app: FastAPI):
     # Shutdown
     await close_mongo_connection()
     
-    # Delete Telegram webhook
-    try:
-        await delete_webhook()
-    except Exception as e:
-        print(f"⚠️  Warning: Error deleting webhook: {str(e)}")
+    # Note: Webhook is kept configured in Telegram for always-on bot functionality
 
 
 # Create FastAPI application
