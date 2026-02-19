@@ -76,7 +76,7 @@ class AuthCodeService:
         
         # Convert expires_at to timezone-aware if it's naive
         if expires_at.tzinfo is None:
-            expires_at = settings.timezone.localize(expires_at)
+            expires_at = expires_at.replace(tzinfo=settings.timezone)
         
         if now > expires_at:
             return None
