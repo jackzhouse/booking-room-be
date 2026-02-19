@@ -35,17 +35,27 @@ application.add_handler(schedule_handler)
 application.add_handler(cancel_handler)
 application.add_handler(authorize_handler)
 
-# Initialize the application once (not for every update)
-application_initialized = False
+# Initialize application once (not for every update)
+application_started = False
 
 
 async def get_application():
-    """Get or initialize the bot application"""
-    global application_initialized
-    if not application_initialized:
+    """Get or start bot application"""
+    global application_started
+    if not application_started:
         await application.initialize()
-        application_initialized = True
+        await application.start()
+        application_started = True
     return application
+
+
+async def stop_application():
+    """Stop bot application"""
+    global application_started
+    if application_started:
+        await application.stop()
+        await application.shutdown()
+        application_started = False
 
 
 async def handle_webhook_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -59,7 +69,7 @@ async def handle_webhook_update(update: Update, context: ContextTypes.DEFAULT_TY
 
 async def set_webhook():
     """
-    Set the webhook for the Telegram bot.
+    Set webhook for Telegram bot.
     This should be called during application startup.
     """
     webhook_url = settings.webhook_url
@@ -81,7 +91,7 @@ async def set_webhook():
 
 async def delete_webhook():
     """
-    Delete the webhook for the Telegram bot.
+    Delete webhook for Telegram bot.
     This should be called during application shutdown or when switching to polling mode.
     """
     try:
