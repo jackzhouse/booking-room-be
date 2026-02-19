@@ -7,7 +7,3 @@ from app.main import app
 
 # Vercel's Python runtime expects a callable 'handler'
 handler = app
-
-# Alternative: Use Vercel's ASGI wrapper if needed
-# from vercel import ASGI
-# handler = ASGI(app)
