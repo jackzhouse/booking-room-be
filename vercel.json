@@ -1,23 +1,6 @@
 {
-  "version": 2,
-  "builds": [
-    {
-      "src": "api/index.py",
-      "use": "@vercel/python"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "api/index.py"
-    }
-  ],
-  "env": {
-    "PYTHON_VERSION": "3.11"
-  },
-  "build": {
-    "env": {
-      "PIP_INSTALL_ARGS": "--upgrade"
-    }
-  }
+  "buildCommand": "pip install -r requirements.txt",
+  "outputDirectory": ".",
+  "framework": "fastapi",
+  "installCommand": "pip install -r requirements.txt"
 }
