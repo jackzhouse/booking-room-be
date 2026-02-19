@@ -26,7 +26,15 @@ async def get_rooms(
         query["is_active"] = True
     
     rooms = await Room.find(query).sort(Room.name).to_list()
-    return [RoomResponse(**{**room.dict(by_alias=True), "id": str(room.id)}) for room in rooms]
+    return [RoomResponse(
+        _id=str(room.id),
+        name=room.name,
+        capacity=room.capacity,
+        facilities=room.facilities,
+        location=room.location,
+        is_active=room.is_active,
+        created_at=room.created_at
+    ) for room in rooms]
 
 
 @router.get("/{room_id}", response_model=RoomResponse)
@@ -44,7 +52,15 @@ async def get_room(
             detail="Room not found"
         )
     
-    return RoomResponse(**{**room.dict(by_alias=True), "id": str(room.id)})
+    return RoomResponse(
+        _id=str(room.id),
+        name=room.name,
+        capacity=room.capacity,
+        facilities=room.facilities,
+        location=room.location,
+        is_active=room.is_active,
+        created_at=room.created_at
+    )
 
 
 @router.get("/{room_id}/schedule", response_model=List[dict])
@@ -111,7 +127,15 @@ async def create_room(
     room = Room(**room_data.dict())
     await room.insert()
     
-    return RoomResponse(**{**room.dict(by_alias=True), "id": str(room.id)})
+    return RoomResponse(
+        _id=str(room.id),
+        name=room.name,
+        capacity=room.capacity,
+        facilities=room.facilities,
+        location=room.location,
+        is_active=room.is_active,
+        created_at=room.created_at
+    )
 
 
 @router.patch("/{room_id}", response_model=RoomResponse)
@@ -137,7 +161,15 @@ async def update_room(
     
     await room.save()
     
-    return RoomResponse(**{**room.dict(by_alias=True), "id": str(room.id)})
+    return RoomResponse(
+        _id=str(room.id),
+        name=room.name,
+        capacity=room.capacity,
+        facilities=room.facilities,
+        location=room.location,
+        is_active=room.is_active,
+        created_at=room.created_at
+    )
 
 
 @router.patch("/{room_id}/toggle")
