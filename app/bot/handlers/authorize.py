@@ -70,9 +70,17 @@ async def authorize_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             # Parse response
             result = response.json()
             
+            # Debug logging
+            print(f"🔍 Authorization attempt - Code: {code}")
+            print(f"🔍 Status code: {response.status_code}")
+            print(f"🔍 Response: {result}")
+            
             # Check if code was verified successfully
             data = result.get("data", {})
             is_verified = data.get("status") == "verified" and response.status_code == 200
+            
+            print(f"🔍 Is verified: {is_verified}")
+            print(f"🔍 Data status: {data.get('status')}")
             
             if is_verified:
                 # Success! User is authenticated
