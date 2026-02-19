@@ -1,5 +1,4 @@
 {
-  "buildCommand": "uv pip install -r requirements.txt",
   "outputDirectory": ".",
   "devCommand": "uvicorn app.main:app --reload"
 }
