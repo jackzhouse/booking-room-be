@@ -32,11 +32,10 @@ class AuthCodeService:
         for _ in range(max_attempts):
             code = "".join([str(random.randint(0, 9)) for _ in range(6)])
             
-            # Check if code already exists and is not used
-            existing = await AuthCode.find_one(
-                (AuthCode.code == code) & (AuthCode.used == False)
-            )
-            if not existing:
+            # Check if code already exists
+            existing = await AuthCode.find_one(AuthCode.code == code)
+            # Only use if code doesn't exist or if it's already used
+            if not existing or existing.used:
                 break
         else:
             raise ValueError("Could not generate unique code after multiple attempts")
