@@ -15,7 +15,7 @@ class AuthCodeService:
     def __init__(self):
         """Initialize the auth code service."""
         self.auth_codes: Dict[str, Dict[str, Any]] = {}
-        self.code_expiry_minutes = 10  # Codes expire after 10 minutes
+        self.code_expiry_minutes = 3  # Codes expire after 3 minutes
     
     def generate_code(self) -> tuple[str, datetime]:
         """
