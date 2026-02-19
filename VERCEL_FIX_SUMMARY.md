@@ -10,6 +10,7 @@ The deployment was failing due to several configuration issues:
 2. **Development dependencies in production** - Testing and code quality tools were included in production requirements
 3. **Missing Python runtime specification** - Vercel wasn't sure which Python version to use
 4. **Redundant configuration** - Both `buildCommand` and `installCommand` were set to the same value
+5. **Python version mismatch** - `.python-version` was set to 3.11 but uv (Vercel's package installer) requires `==3.12.*`
 
 ## Fixes Applied
 
@@ -112,12 +113,12 @@ black==24.10.0
 
 ### 4. Added `.python-version` File
 
-Created `.python-version` file to specify Python 3.11:
+Created `.python-version` file to specify Python 3.12:
 ```
-3.11
+3.12
 ```
 
-This ensures Vercel uses the correct Python version.
+This ensures Vercel uses the correct Python version and matches uv's requirement of `==3.12.*`.
 
 ### 5. Simplified `api/index.py`
 
@@ -154,7 +155,7 @@ Removing development dependencies:
 
 ### 3. Explicit Python Version
 The `.python-version` file:
-- Guarantees Python 3.11 is used
+- Guarantees Python 3.12 is used (matches uv's `==3.12.*` requirement)
 - Matches the version tested during development
 - Prevents version mismatches
 
