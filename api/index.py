@@ -5,5 +5,6 @@ This file serves as the entry point for Vercel's serverless functions.
 
 from app.main import app
 
-# Vercel's Python runtime has built-in FastAPI support
-handler = app
+# Vercel expects a callable with event/context signature
+# Using lambda to wrap the FastAPI app
+handler = lambda event, context: app
