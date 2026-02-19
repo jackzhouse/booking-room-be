@@ -70,9 +70,15 @@ class AuthCodeService:
         if not auth_code:
             return None
         
-        # Check if code is expired
+        # Check if code is expired (ensure both datetimes are timezone-aware)
         now = datetime.now(settings.timezone)
-        if now > auth_code.expires_at:
+        expires_at = auth_code.expires_at
+        
+        # Convert expires_at to timezone-aware if it's naive
+        if expires_at.tzinfo is None:
+            expires_at = settings.timezone.localize(expires_at)
+        
+        if now > expires_at:
             return None
         
         # Check if code is already used
