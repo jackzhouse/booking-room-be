@@ -40,11 +40,5 @@ class AuthCode(Document):
             [("expires_at", 1)]
         ]
         
-        # Automatically expire documents after expires_at
-        ttl_indexes = [
-            {
-                "name": "auto_expire_codes",
-                "field": "expires_at",
-                "expireAfterSeconds": 0
-            }
-        ]
+        # Time-to-live index for automatic document expiration
+        use_state_management = False

@@ -32,8 +32,10 @@ class AuthCodeService:
         for _ in range(max_attempts):
             code = "".join([str(random.randint(0, 9)) for _ in range(6)])
             
-            # Check if code already exists
-            existing = await AuthCode.find_one(AuthCode.code == code, used=False)
+            # Check if code already exists and is not used
+            existing = await AuthCode.find_one(
+                (AuthCode.code == code) & (AuthCode.used == False)
+            )
             if not existing:
                 break
         else:
