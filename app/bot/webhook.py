@@ -35,15 +35,26 @@ application.add_handler(schedule_handler)
 application.add_handler(cancel_handler)
 application.add_handler(authorize_handler)
 
+# Initialize the application once (not for every update)
+application_initialized = False
+
+
+async def get_application():
+    """Get or initialize the bot application"""
+    global application_initialized
+    if not application_initialized:
+        await application.initialize()
+        application_initialized = True
+    return application
+
 
 async def handle_webhook_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Handle incoming webhook updates from Telegram.
     This function is called by FastAPI when Telegram sends updates via webhook.
     """
-    await application.initialize()
-    await application.process_update(update)
-    await application.shutdown()
+    app = await get_application()
+    await app.process_update(update)
 
 
 async def set_webhook():
