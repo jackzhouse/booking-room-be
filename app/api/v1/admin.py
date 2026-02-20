@@ -81,7 +81,15 @@ async def get_all_settings(
     Get all application settings (Admin only).
     """
     settings_list = await Setting.find().sort(Setting.key).to_list()
-    return [SettingResponse(**setting.dict(by_alias=True)) for setting in settings_list]
+    result = []
+    for setting in settings_list:
+        setting_dict = setting.dict(by_alias=True)
+        if "_id" in setting_dict and setting_dict["_id"] is not None:
+            setting_dict["_id"] = str(setting_dict["_id"])
+        if "updated_by" in setting_dict and setting_dict["updated_by"] is not None:
+            setting_dict["updated_by"] = str(setting_dict["updated_by"])
+        result.append(SettingResponse(**setting_dict))
+    return result
 
 
 @router.get("/settings/{key}", response_model=SettingResponse)
@@ -99,7 +107,14 @@ async def get_setting(
             detail="Setting not found"
         )
     
-    return SettingResponse(**setting.dict(by_alias=True))
+    # Convert ObjectId fields to strings for response
+    setting_dict = setting.dict(by_alias=True)
+    if "_id" in setting_dict and setting_dict["_id"] is not None:
+        setting_dict["_id"] = str(setting_dict["_id"])
+    if "updated_by" in setting_dict and setting_dict["updated_by"] is not None:
+        setting_dict["updated_by"] = str(setting_dict["updated_by"])
+    
+    return SettingResponse(**setting_dict)
 
 
 @router.patch("/settings/{key}", response_model=SettingResponse)
@@ -127,7 +142,14 @@ async def update_setting(
     setting.updated_by = current_user.id
     await setting.save()
     
-    return SettingResponse(**setting.dict(by_alias=True))
+    # Convert ObjectId fields to strings for response
+    setting_dict = setting.dict(by_alias=True)
+    if "_id" in setting_dict and setting_dict["_id"] is not None:
+        setting_dict["_id"] = str(setting_dict["_id"])
+    if "updated_by" in setting_dict and setting_dict["updated_by"] is not None:
+        setting_dict["updated_by"] = str(setting_dict["updated_by"])
+    
+    return SettingResponse(**setting_dict)
 
 
 @router.post("/settings/test-notification")
