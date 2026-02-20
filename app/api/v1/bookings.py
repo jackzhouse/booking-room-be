@@ -20,6 +20,36 @@ from app.models.user import User
 router = APIRouter(prefix="/bookings", tags=["bookings"])
 
 
+def convert_booking_to_response(booking: Booking) -> BookingResponse:
+    """
+    Convert a Booking model to BookingResponse by converting ObjectId fields to strings.
+    """
+    booking_dict = booking.dict(by_alias=True)
+    # Convert ObjectId fields to strings
+    if "_id" in booking_dict and booking_dict["_id"] is not None:
+        booking_dict["_id"] = str(booking_dict["_id"])
+    if "user_id" in booking_dict and booking_dict["user_id"] is not None:
+        booking_dict["user_id"] = str(booking_dict["user_id"])
+    if "room_id" in booking_dict and booking_dict["room_id"] is not None:
+        booking_dict["room_id"] = str(booking_dict["room_id"])
+    if "cancelled_by" in booking_dict and booking_dict["cancelled_by"] is not None:
+        booking_dict["cancelled_by"] = str(booking_dict["cancelled_by"])
+    return BookingResponse(**booking_dict)
+
+
+@router.get("/my", response_model=List[BookingResponse])
+async def get_my_bookings(
+    status: Optional[str] = None,
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Get all bookings for the current user (alias for /bookings).
+    Optionally filter by status (active/cancelled).
+    """
+    bookings = await get_user_bookings(current_user.id, status)
+    return [convert_booking_to_response(booking) for booking in bookings]
+
+
 @router.get("", response_model=List[BookingResponse])
 async def get_bookings(
     status: Optional[str] = None,
@@ -30,7 +60,7 @@ async def get_bookings(
     Optionally filter by status (active/cancelled).
     """
     bookings = await get_user_bookings(current_user.id, status)
-    return [BookingResponse(**booking.dict(by_alias=True)) for booking in bookings]
+    return [convert_booking_to_response(booking) for booking in bookings]
 
 
 @router.get("/{booking_id}", response_model=BookingResponse)
@@ -42,7 +72,16 @@ async def get_booking(
     Get details of a specific booking.
     User can only view their own bookings.
     """
-    booking = await Booking.get(booking_id)
+    try:
+        # Convert string ID to ObjectId
+        obj_id = ObjectId(booking_id)
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid booking ID format"
+        )
+    
+    booking = await Booking.get(obj_id)
     if not booking:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -56,7 +95,7 @@ async def get_booking(
             detail="You don't have permission to view this booking"
         )
     
-    return BookingResponse(**booking.dict(by_alias=True))
+    return convert_booking_to_response(booking)
 
 
 @router.post("", response_model=BookingResponse, status_code=status.HTTP_201_CREATED)
@@ -84,7 +123,7 @@ async def create_new_booking(
             is_admin=current_user.is_admin
         )
         
-        return BookingResponse(**booking.dict(by_alias=True))
+        return convert_booking_to_response(booking)
         
     except ValueError as e:
         raise HTTPException(
@@ -123,7 +162,7 @@ async def update_existing_booking(
             is_admin=current_user.is_admin
         )
         
-        return BookingResponse(**booking.dict(by_alias=True))
+        return convert_booking_to_response(booking)
         
     except ValueError as e:
         raise HTTPException(
@@ -154,7 +193,7 @@ async def cancel_existing_booking(
             is_admin=current_user.is_admin
         )
         
-        return BookingResponse(**booking.dict(by_alias=True))
+        return convert_booking_to_response(booking)
         
     except ValueError as e:
         raise HTTPException(

@@ -163,8 +163,14 @@ async def update_booking(
     Raises:
         ValueError: If validation fails or booking not found
     """
+    # Convert booking_id string to ObjectId
+    try:
+        booking_obj_id = ObjectId(booking_id)
+    except Exception:
+        raise ValueError("Invalid booking ID format")
+    
     # Get existing booking
-    booking = await Booking.get(booking_id)
+    booking = await Booking.get(booking_obj_id)
     if not booking:
         raise ValueError("Booking tidak ditemukan")
     
@@ -289,8 +295,14 @@ async def cancel_booking(
     Raises:
         ValueError: If booking not found or no permission
     """
+    # Convert booking_id string to ObjectId
+    try:
+        booking_obj_id = ObjectId(booking_id)
+    except Exception:
+        raise ValueError("Invalid booking ID format")
+    
     # Get existing booking
-    booking = await Booking.get(booking_id)
+    booking = await Booking.get(booking_obj_id)
     if not booking:
         raise ValueError("Booking tidak ditemukan")
     

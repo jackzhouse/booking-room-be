@@ -17,6 +17,43 @@ from app.services.telegram_service import test_notification
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 
+def convert_booking_to_response(booking: Booking) -> BookingResponse:
+    """
+    Convert a Booking model to BookingResponse by converting ObjectId fields to strings.
+    """
+    booking_dict = booking.dict(by_alias=True)
+    # Convert ObjectId fields to strings
+    if "_id" in booking_dict and booking_dict["_id"] is not None:
+        booking_dict["_id"] = str(booking_dict["_id"])
+    if "user_id" in booking_dict and booking_dict["user_id"] is not None:
+        booking_dict["user_id"] = str(booking_dict["user_id"])
+    if "room_id" in booking_dict and booking_dict["room_id"] is not None:
+        booking_dict["room_id"] = str(booking_dict["room_id"])
+    if "cancelled_by" in booking_dict and booking_dict["cancelled_by"] is not None:
+        booking_dict["cancelled_by"] = str(booking_dict["cancelled_by"])
+    return BookingResponse(**booking_dict)
+
+
+def convert_room_to_response(room: Room) -> RoomResponse:
+    """
+    Convert a Room model to RoomResponse by converting ObjectId fields to strings.
+    """
+    room_dict = room.dict(by_alias=True)
+    if "_id" in room_dict and room_dict["_id"] is not None:
+        room_dict["_id"] = str(room_dict["_id"])
+    return RoomResponse(**room_dict)
+
+
+def convert_user_to_response(user: User) -> UserResponse:
+    """
+    Convert a User model to UserResponse by converting ObjectId fields to strings.
+    """
+    user_dict = user.dict(by_alias=True)
+    if "_id" in user_dict and user_dict["_id"] is not None:
+        user_dict["_id"] = str(user_dict["_id"])
+    return UserResponse(**user_dict)
+
+
 @router.get("/bookings", response_model=List[BookingResponse])
 async def get_all_bookings(
     current_user: User = Depends(get_current_admin_user)
@@ -25,7 +62,7 @@ async def get_all_bookings(
     Get all bookings from all users (Admin only).
     """
     bookings = await Booking.find().sort(-Booking.created_at).to_list()
-    return [BookingResponse(**booking.dict(by_alias=True)) for booking in bookings]
+    return [convert_booking_to_response(booking) for booking in bookings]
 
 
 @router.delete("/bookings/{booking_id}", response_model=BookingResponse)
@@ -43,7 +80,7 @@ async def admin_cancel_booking(
             is_admin=True
         )
         
-        return BookingResponse(**booking.dict(by_alias=True))
+        return convert_booking_to_response(booking)
         
     except ValueError as e:
         raise HTTPException(
@@ -60,7 +97,7 @@ async def get_all_rooms(
     Get all rooms including inactive ones (Admin only).
     """
     rooms = await Room.find().sort(Room.name).to_list()
-    return [RoomResponse(**room.dict(by_alias=True)) for room in rooms]
+    return [convert_room_to_response(room) for room in rooms]
 
 
 @router.get("/users", response_model=List[UserResponse])
@@ -71,7 +108,7 @@ async def get_all_users(
     Get all registered users (Admin only).
     """
     users = await User.find().sort(-User.created_at).to_list()
-    return [UserResponse(**user.dict(by_alias=True)) for user in users]
+    return [convert_user_to_response(user) for user in users]
 
 
 @router.get("/settings", response_model=List[SettingResponse])
