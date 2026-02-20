@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional
-from beanie import Document, Indexed
+from beanie import Document, Indexed, PydanticObjectId
 from pydantic import BaseModel, Field
 from bson import ObjectId
 
@@ -21,9 +21,9 @@ class HistoryData(BaseModel):
 class BookingHistory(Document):
     """Audit trail for booking changes"""
     
-    booking_id: Indexed(ObjectId)
+    booking_id: Indexed(PydanticObjectId)
     booking_number: str
-    changed_by: ObjectId
+    changed_by: PydanticObjectId
     action: str  # created, updated, cancelled
     old_data: Optional[HistoryData] = None
     new_data: Optional[HistoryData] = None
