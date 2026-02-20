@@ -329,7 +329,7 @@ async def cancel_booking(
 
 
 async def create_history(
-    booking_id: ObjectId,
+    booking_id: PydanticObjectId,
     booking_number: str,
     changed_by: ObjectId,
     action: str,
@@ -338,7 +338,7 @@ async def create_history(
 ) -> BookingHistory:
     """Create a booking history record."""
     history = BookingHistory(
-        booking_id=booking_id,
+        booking_id=ObjectId(booking_id),
         booking_number=booking_number,
         changed_by=changed_by,
         action=action,
