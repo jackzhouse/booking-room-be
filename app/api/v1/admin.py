@@ -1,6 +1,6 @@
-from typing import List
+from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 
 from app.models.booking import Booking
 from app.models.user import User
@@ -8,6 +8,14 @@ from app.models.room import Room
 from app.models.setting import Setting
 from app.schemas.admin import SettingResponse, SettingUpdate
 from app.schemas.dashboard import DashboardStats
+from app.schemas.user_management import (
+    UserManagementResponse,
+    UserListResponse,
+    UpdateAdminRequest,
+    UpdateStatusRequest,
+    SuccessResponse,
+    ErrorResponse
+)
 from app.services.booking_service import cancel_booking
 from app.services.dashboard_service import get_dashboard_statistics
 from app.api.deps import get_current_admin_user
@@ -15,6 +23,7 @@ from app.schemas.booking import BookingResponse
 from app.schemas.room import RoomResponse
 from app.schemas.auth import UserResponse
 from app.services.telegram_service import test_notification
+from datetime import datetime
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -54,6 +63,24 @@ def convert_user_to_response(user: User) -> UserResponse:
     if "_id" in user_dict and user_dict["_id"] is not None:
         user_dict["_id"] = str(user_dict["_id"])
     return UserResponse(**user_dict)
+
+
+def convert_user_to_management_response(user: User) -> UserManagementResponse:
+    """
+    Convert a User model to UserManagementResponse with proper field mapping.
+    Maps avatar_url to avatar.
+    """
+    user_dict = user.dict(by_alias=True)
+    return UserManagementResponse(
+        id=str(user_dict.get("_id", "")),
+        telegram_id=user_dict.get("telegram_id", 0),
+        full_name=user_dict.get("full_name", ""),
+        username=user_dict.get("username"),
+        is_admin=user_dict.get("is_admin", False),
+        is_active=user_dict.get("is_active", True),
+        avatar=user_dict.get("avatar_url"),  # Map avatar_url to avatar
+        created_at=user_dict.get("created_at", datetime.utcnow())
+    )
 
 
 @router.get("/bookings", response_model=List[BookingResponse])
@@ -102,15 +129,111 @@ async def get_all_rooms(
     return [convert_room_to_response(room) for room in rooms]
 
 
-@router.get("/users", response_model=List[UserResponse])
+@router.get("/users", response_model=UserListResponse)
 async def get_all_users(
+    role: Optional[str] = Query("all", description="Filter by role: 'all' or 'admin'"),
     current_user: User = Depends(get_current_admin_user)
 ):
     """
     Get all registered users (Admin only).
+    
+    Query Parameters:
+    - role: Filter users by role ('all' for all users, 'admin' for admin users only)
     """
-    users = await User.find().sort(-User.created_at).to_list()
-    return [convert_user_to_response(user) for user in users]
+    try:
+        # Build query based on role filter
+        if role == "admin":
+            users = await User.find(User.is_admin == True).sort(-User.created_at).to_list()
+        else:  # role == "all" or any other value
+            users = await User.find().sort(-User.created_at).to_list()
+        
+        # Convert users to management response format
+        user_responses = [convert_user_to_management_response(user) for user in users]
+        
+        return UserListResponse(users=user_responses, total=len(user_responses))
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to fetch users"
+        )
+
+
+@router.patch("/users/{user_id}/admin")
+async def toggle_user_admin_role(
+    user_id: str,
+    request: UpdateAdminRequest,
+    current_user: User = Depends(get_current_admin_user)
+):
+    """
+    Toggle user admin role (Admin only).
+    
+    Updates the is_admin field for a specific user.
+    """
+    try:
+        # Find user by ID
+        user = await User.get(user_id)
+        
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        # Update admin role
+        user.is_admin = request.is_admin
+        user.updated_at = datetime.utcnow()
+        await user.save()
+        
+        # Return success response
+        user_response = convert_user_to_management_response(user)
+        return SuccessResponse(success=True, data=user_response.dict())
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update user admin role"
+        )
+
+
+@router.patch("/users/{user_id}/status")
+async def toggle_user_active_status(
+    user_id: str,
+    request: UpdateStatusRequest,
+    current_user: User = Depends(get_current_admin_user)
+):
+    """
+    Toggle user active status (Admin only).
+    
+    Updates the is_active field for a specific user.
+    """
+    try:
+        # Find user by ID
+        user = await User.get(user_id)
+        
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        # Update active status
+        user.is_active = request.is_active
+        user.updated_at = datetime.utcnow()
+        await user.save()
+        
+        # Return success response
+        user_response = convert_user_to_management_response(user)
+        return SuccessResponse(success=True, data=user_response.dict())
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update user status"
+        )
 
 
 @router.get("/settings", response_model=List[SettingResponse])
