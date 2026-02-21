@@ -7,7 +7,9 @@ from app.models.user import User
 from app.models.room import Room
 from app.models.setting import Setting
 from app.schemas.admin import SettingResponse, SettingUpdate
+from app.schemas.dashboard import DashboardStats
 from app.services.booking_service import cancel_booking
+from app.services.dashboard_service import get_dashboard_statistics
 from app.api.deps import get_current_admin_user
 from app.schemas.booking import BookingResponse
 from app.schemas.room import RoomResponse
@@ -206,3 +208,24 @@ async def test_telegram_notification(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to send test notification. Check bot configuration."
         )
+
+
+@router.get("/dashboard/stats", response_model=DashboardStats)
+async def get_dashboard_stats(
+    current_user: User = Depends(get_current_admin_user)
+):
+    """
+    Get dashboard statistics (Admin only).
+    
+    Returns:
+        - bookings_today: Total bookings today (all statuses)
+        - bookings_this_week: Total bookings this week (all statuses)
+        - active_bookings_today: Active (non-cancelled) bookings today
+        - active_bookings_this_week: Active bookings this week
+        - total_rooms: Total rooms (active + inactive)
+        - active_rooms: Active rooms only
+        - total_users: Total users (active + inactive)
+        - active_users: Active users only
+    """
+    stats = await get_dashboard_statistics()
+    return DashboardStats(**stats)
