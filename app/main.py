@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -10,6 +11,17 @@ from app.api.v1 import auth, bookings, rooms, admin
 from app.bot.webhook import set_webhook, delete_webhook, handle_webhook_update
 from telegram import Update
 from fastapi import Request
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler()
+    ]
+)
+
+logger = logging.getLogger(__name__)
 
 # Import all models for Beanie initialization
 from app.models.user import User

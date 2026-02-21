@@ -2,12 +2,15 @@ from typing import List, Optional
 from datetime import datetime, date
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from bson import ObjectId
+import logging
 
 from app.models.room import Room
 from app.models.booking import Booking
 from app.schemas.room import RoomResponse, RoomCreate, RoomUpdate
 from app.api.deps import get_current_active_user, get_current_admin_user
 from app.models.user import User
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/rooms", tags=["rooms"])
 
@@ -21,20 +24,34 @@ async def get_rooms(
     Get list of all rooms.
     By default returns only active rooms.
     """
+    logger.info(f"GET /rooms called - User: {current_user.id}, active_only: {active_only}")
     query = {}
     if active_only:
         query["is_active"] = True
     
+    logger.info(f"Query: {query}")
     rooms = await Room.find(query).sort(Room.name).to_list()
-    return [RoomResponse(
-        _id=str(room.id),
-        name=room.name,
-        capacity=room.capacity,
-        facilities=room.facilities,
-        location=room.location,
-        is_active=room.is_active,
-        created_at=room.created_at
-    ) for room in rooms]
+    logger.info(f"Found {len(rooms)} rooms")
+    
+    result = []
+    for room in rooms:
+        try:
+            response = RoomResponse(
+                _id=str(room.id),
+                name=room.name,
+                capacity=room.capacity,
+                facilities=room.facilities,
+                location=room.location,
+                is_active=room.is_active,
+                created_at=room.created_at
+            )
+            result.append(response)
+            logger.info(f"Successfully processed room: {room.name} (id: {room.id})")
+        except Exception as e:
+            logger.error(f"Error processing room {room.name}: {e}")
+    
+    logger.info(f"Returning {len(result)} rooms")
+    return result
 
 
 @router.get("/{room_id}", response_model=RoomResponse)
@@ -45,13 +62,25 @@ async def get_room(
     """
     Get details of a specific room.
     """
-    room = await Room.get(room_id)
+    logger.info(f"GET /rooms/{room_id} called - User: {current_user.id}")
+    
+    try:
+        room = await Room.get(room_id)
+    except Exception as e:
+        logger.error(f"Error fetching room {room_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid room ID format"
+        )
+    
     if not room:
+        logger.warning(f"Room {room_id} not found")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Room not found"
         )
     
+    logger.info(f"Successfully retrieved room: {room.name}")
     return RoomResponse(
         _id=str(room.id),
         name=room.name,
@@ -75,13 +104,18 @@ async def get_room_schedule(
     
     If end_date is not provided, defaults to start_date.
     """
+    logger.info(f"GET /rooms/{room_id}/schedule called - User: {current_user.id}, start_date: {start_date}, end_date: {end_date}")
+    
     # Verify room exists
     room = await Room.get(room_id)
     if not room:
+        logger.warning(f"Room {room_id} not found for schedule request")
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Room not found"
         )
+    
+    logger.info(f"Found room: {room.name}")
     
     # Set end_date to start_date if not provided
     if end_date is None:
@@ -91,6 +125,8 @@ async def get_room_schedule(
     start_datetime = datetime.combine(start_date, datetime.min.time())
     end_datetime = datetime.combine(end_date, datetime.max.time())
     
+    logger.info(f"Querying schedule from {start_datetime} to {end_datetime}")
+    
     # Query bookings for this room within date range
     bookings = await Booking.find({
         "room_id": ObjectId(room_id),
@@ -98,19 +134,25 @@ async def get_room_schedule(
         "start_time": {"$gte": start_datetime, "$lte": end_datetime}
     }).sort(Booking.start_time).to_list()
     
+    logger.info(f"Found {len(bookings)} bookings")
+    
     # Format response
     schedule = []
     for booking in bookings:
-        schedule.append({
-            "id": str(booking.id),
-            "booking_number": booking.booking_number,
-            "title": booking.title,
-            "user_name": booking.user_snapshot.full_name,
-            "division": booking.user_snapshot.division,
-            "start_time": booking.start_time.isoformat(),
-            "end_time": booking.end_time.isoformat()
-        })
+        try:
+            schedule.append({
+                "id": str(booking.id),
+                "booking_number": booking.booking_number,
+                "title": booking.title,
+                "user_name": booking.user_snapshot.full_name,
+                "division": booking.user_snapshot.division,
+                "start_time": booking.start_time.isoformat(),
+                "end_time": booking.end_time.isoformat()
+            })
+        except Exception as e:
+            logger.error(f"Error processing booking {booking.id}: {e}")
     
+    logger.info(f"Returning {len(schedule)} schedule items")
     return schedule
 
 
