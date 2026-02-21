@@ -1,10 +1,11 @@
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 from telegram import Bot
 from telegram.error import TelegramError
 
 from app.core.config import settings
 from app.models.booking import Booking
+from app.models.telegram_group import TelegramGroup
 
 
 bot = Bot(token=settings.BOT_TOKEN)
@@ -34,24 +35,83 @@ async def send_telegram_message(chat_id: int, message: str, parse_mode: str = "M
         return False
 
 
-async def get_telegram_group_id() -> Optional[int]:
+async def get_telegram_group(group_id: int) -> Optional[TelegramGroup]:
     """
-    Get the Telegram group ID from settings.
-    Returns None if not found or invalid.
+    Get Telegram group by ID.
+    
+    Args:
+        group_id: Telegram group ID
+        
+    Returns:
+        TelegramGroup object if found and active, None otherwise
     """
-    from app.models.setting import Setting
+    group = await TelegramGroup.find_one(TelegramGroup.group_id == group_id)
     
-    setting = await Setting.find_one(Setting.key == "telegram_group_id")
-    
-    if not setting:
-        print("Warning: telegram_group_id not found in settings")
+    if not group:
+        print(f"Warning: Telegram group {group_id} not found")
         return None
     
-    try:
-        return int(setting.value)
-    except (ValueError, TypeError):
-        print(f"Warning: Invalid telegram_group_id: {setting.value}")
+    if not group.is_active:
+        print(f"Warning: Telegram group {group_id} is inactive")
         return None
+    
+    return group
+
+
+async def get_all_telegram_groups() -> List[TelegramGroup]:
+    """
+    Get all active Telegram groups.
+    
+    Returns:
+        List of active TelegramGroup objects
+    """
+    return await TelegramGroup.find(TelegramGroup.is_active == True).to_list()
+
+
+async def add_telegram_group(group_id: int, group_name: str) -> TelegramGroup:
+    """
+    Add a new Telegram group.
+    
+    Args:
+        group_id: Telegram group chat ID
+        group_name: Human-readable name for display
+        
+    Returns:
+        Created TelegramGroup object
+        
+    Raises:
+        ValueError: If group_id already exists
+    """
+    # Check if group_id already exists
+    existing = await TelegramGroup.find_one(TelegramGroup.group_id == group_id)
+    if existing:
+        raise ValueError(f"Telegram group with ID {group_id} already exists")
+    
+    group = TelegramGroup(
+        group_id=group_id,
+        group_name=group_name,
+        is_active=True
+    )
+    await group.insert()
+    return group
+
+
+async def delete_telegram_group(group_id: int) -> bool:
+    """
+    Delete a Telegram group by ID.
+    
+    Args:
+        group_id: Telegram group chat ID
+        
+    Returns:
+        True if deleted, False if not found
+    """
+    group = await TelegramGroup.find_one(TelegramGroup.group_id == group_id)
+    if not group:
+        return False
+    
+    await group.delete()
+    return True
 
 
 def format_date_indonesian(dt: datetime) -> str:
@@ -80,10 +140,10 @@ def format_time_range(start: datetime, end: datetime) -> str:
 async def notify_new_booking(booking: Booking):
     """
     Send notification for new booking to Telegram group.
+    Uses telegram_group_id from booking object.
     """
-    group_id = await get_telegram_group_id()
-    if not group_id:
-        return
+    # Use telegram_group_id from booking (snapshot)
+    group_id = booking.telegram_group_id
     
     # Format username with @ tag if available
     username_display = booking.user_snapshot.username if booking.user_snapshot.username else booking.user_snapshot.full_name
@@ -110,10 +170,10 @@ async def notify_new_booking(booking: Booking):
 async def notify_booking_updated(booking: Booking, old_data: dict):
     """
     Send notification for booking update to Telegram group.
+    Uses telegram_group_id from booking object.
     """
-    group_id = await get_telegram_group_id()
-    if not group_id:
-        return
+    # Use telegram_group_id from booking (snapshot)
+    group_id = booking.telegram_group_id
     
     # Format username with @ tag if available
     username_display = booking.user_snapshot.username if booking.user_snapshot.username else booking.user_snapshot.full_name
@@ -157,10 +217,10 @@ async def notify_booking_updated(booking: Booking, old_data: dict):
 async def notify_booking_cancelled(booking: Booking):
     """
     Send notification for booking cancellation to Telegram group.
+    Uses telegram_group_id from booking object.
     """
-    group_id = await get_telegram_group_id()
-    if not group_id:
-        return
+    # Use telegram_group_id from booking (snapshot)
+    group_id = booking.telegram_group_id
     
     # Format username with @ tag if available
     username_display = booking.user_snapshot.username if booking.user_snapshot.username else booking.user_snapshot.full_name
@@ -179,17 +239,25 @@ async def notify_booking_cancelled(booking: Booking):
     await send_telegram_message(group_id, message)
 
 
-async def test_notification():
+async def test_notification(group_id: int) -> bool:
     """
-    Send a test notification to the Telegram group.
+    Send a test notification to a specific Telegram group.
+    
+    Args:
+        group_id: Telegram group ID to send test notification to
+        
+    Returns:
+        True if successful, False otherwise
     """
-    group_id = await get_telegram_group_id()
-    if not group_id:
+    # Validate that group exists and is active
+    group = await get_telegram_group(group_id)
+    if not group:
         return False
     
     message = (
         f"✅ *Test Notifikasi*\n\n"
         f"Notifikasi dari Booking Room Backend berhasil!\n"
+        f"Grup: {group.group_name}\n"
         f"Waktu: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}"
     )
     

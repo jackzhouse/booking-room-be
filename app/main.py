@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.core.database import connect_to_mongo, close_mongo_connection, init_beanie_models
-from app.api.v1 import auth, bookings, rooms, admin
+from app.api.v1 import auth, bookings, rooms, admin, telegram_groups
 from app.bot.webhook import set_webhook, delete_webhook, handle_webhook_update
 from telegram import Update
 from fastapi import Request
@@ -30,6 +30,7 @@ from app.models.booking import Booking
 from app.models.booking_history import BookingHistory
 from app.models.setting import Setting
 from app.models.auth_code import AuthCode
+from app.models.telegram_group import TelegramGroup
 
 
 @asynccontextmanager
@@ -45,7 +46,8 @@ async def lifespan(app: FastAPI):
         Booking,
         BookingHistory,
         Setting,
-        AuthCode
+        AuthCode,
+        TelegramGroup
     ])
     
     # Initialize default settings if not exist
@@ -89,6 +91,7 @@ app.include_router(auth.router, prefix="/api/v1")
 app.include_router(bookings.router, prefix="/api/v1")
 app.include_router(rooms.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
+app.include_router(telegram_groups.router, prefix="/api/v1")
 
 
 @app.post("/webhook/telegram/{token}")

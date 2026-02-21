@@ -116,6 +116,7 @@ async def create_new_booking(
         booking = await create_booking(
             user_id=current_user.id,
             room_id=booking_data.room_id,
+            telegram_group_id=booking_data.telegram_group_id,
             title=booking_data.title,
             start_time=booking_data.start_time,
             end_time=booking_data.end_time,

@@ -15,6 +15,7 @@ from app.services.conflict_service import (
     format_conflict_message
 )
 from app.services.telegram_service import (
+    get_telegram_group,
     notify_new_booking,
     notify_booking_updated,
     notify_booking_cancelled
@@ -52,6 +53,7 @@ async def generate_booking_number() -> str:
 async def create_booking(
     user_id: ObjectId,
     room_id: str,
+    telegram_group_id: int,
     title: str,
     start_time: datetime,
     end_time: datetime,
@@ -78,6 +80,11 @@ async def create_booking(
     user = await User.get(user_id)
     if not user:
         raise ValueError("User tidak ditemukan")
+    
+    # Validate telegram_group_id
+    telegram_group = await get_telegram_group(telegram_group_id)
+    if not telegram_group:
+        raise ValueError("Grup Telegram tidak ditemukan atau tidak aktif")
     
     # Validate operating hours (non-admin only)
     is_valid, error_msg = await validate_operating_hours(start_time, end_time, is_admin)
@@ -119,6 +126,7 @@ async def create_booking(
         ),
         room_id=ObjectId(room_id),
         room_snapshot=RoomSnapshot(name=room.name),
+        telegram_group_id=telegram_group_id,  # Store as snapshot
         title=title,
         division=division,
         description=description,

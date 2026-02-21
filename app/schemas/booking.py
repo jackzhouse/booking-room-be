@@ -19,6 +19,7 @@ class RoomSnapshotResponse(BaseModel):
 class BookingCreate(BaseModel):
     """Schema for creating a new booking"""
     room_id: str
+    telegram_group_id: int  # Required: Telegram group ID for notifications
     title: str
     division: Optional[str] = None
     description: Optional[str] = None
@@ -44,6 +45,7 @@ class BookingResponse(BaseModel):
     user_snapshot: UserSnapshotResponse
     room_id: str
     room_snapshot: RoomSnapshotResponse
+    telegram_group_id: int
     title: str
     division: Optional[str] = None
     description: Optional[str] = None

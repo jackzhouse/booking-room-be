@@ -26,6 +26,7 @@ class Booking(Document):
     user_snapshot: UserSnapshot
     room_id: ObjectId
     room_snapshot: RoomSnapshot
+    telegram_group_id: int  # Snapshot of telegram group ID for notifications
     title: str
     division: Optional[str] = None
     description: Optional[str] = None
@@ -62,6 +63,7 @@ class Booking(Document):
                 "room_snapshot": {
                     "name": "Ruang Meeting 1"
                 },
+                "telegram_group_id": -1001234567890,
                 "title": "Sprint Planning Q1",
                 "division": "Engineering",
                 "description": "Kick off sprint dengan seluruh tim dev",
