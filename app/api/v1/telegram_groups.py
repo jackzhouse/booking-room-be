@@ -12,7 +12,8 @@ from app.services.telegram_service import (
     get_all_telegram_groups,
     add_telegram_group,
     delete_telegram_group,
-    test_notification
+    test_notification,
+    get_telegram_chat_info
 )
 from app.api.deps import get_current_active_user, get_current_admin_user
 from app.models.user import User
@@ -28,6 +29,52 @@ def convert_group_to_response(group: TelegramGroup) -> TelegramGroupResponse:
     if "_id" in group_dict and group_dict["_id"] is not None:
         group_dict["_id"] = str(group_dict["_id"])
     return TelegramGroupResponse(**group_dict)
+
+
+@router.get("/{group_id}/verify", status_code=status.HTTP_200_OK)
+async def verify_telegram_group(
+    group_id: int,
+    current_user: User = Depends(get_current_admin_user)
+):
+    """
+    Verify and get information about a Telegram group by its ID.
+    
+    This endpoint checks if the bot can access the group and retrieves
+    the group's information including its name and type from Telegram API.
+    
+    Only admin can access this endpoint.
+    
+    Useful for:
+    - Verifying bot has access to the group before adding it
+    - Getting the group name automatically without manual typing
+    - Checking if group_id is valid
+    
+    Returns:
+        {
+            "group_id": int,
+            "group_name": str,
+            "group_type": str  ("group", "supergroup", "channel")
+        }
+    
+    Errors:
+        - 400: Bot doesn't have access to the group or group_id is invalid
+        - 401: User not authenticated
+        - 403: User not an admin
+    """
+    try:
+        chat_info = await get_telegram_chat_info(group_id)
+        return chat_info
+        
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Internal server error: {str(e)}"
+        )
 
 
 @router.get("", response_model=TelegramGroupListResponse)

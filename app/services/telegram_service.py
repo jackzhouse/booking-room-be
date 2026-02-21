@@ -1,6 +1,6 @@
 from datetime import datetime
-from typing import Optional, List
-from telegram import Bot
+from typing import Optional, List, Dict
+from telegram import Bot, Chat
 from telegram.error import TelegramError
 
 from app.core.config import settings
@@ -112,6 +112,61 @@ async def delete_telegram_group(group_id: int) -> bool:
     
     await group.delete()
     return True
+
+
+async def get_telegram_chat_info(chat_id: int) -> Dict[str, any]:
+    """
+    Get Telegram chat information by chat ID.
+    
+    This function retrieves chat information from Telegram API including
+    the chat name/title, type, and other metadata.
+    
+    Args:
+        chat_id: Telegram chat ID (can be negative for groups)
+        
+    Returns:
+        Dictionary with chat information:
+        {
+            "group_id": int,
+            "group_name": str,
+            "group_type": str  (e.g., "group", "supergroup", "channel")
+        }
+        
+    Raises:
+        ValueError: If chat not found or bot doesn't have access
+        Exception: For other Telegram API errors
+    """
+    try:
+        chat: Chat = await bot.get_chat(chat_id=chat_id)
+        
+        # Get chat name (title for groups, full_name for private chats)
+        chat_name = chat.title
+        if not chat_name and chat.full_name:
+            chat_name = chat.full_name
+        elif not chat_name:
+            chat_name = str(chat_id)  # Fallback to ID if no name available
+        
+        # Determine chat type
+        chat_type = chat.type  # "private", "group", "supergroup", "channel"
+        
+        return {
+            "group_id": chat_id,
+            "group_name": chat_name,
+            "group_type": chat_type
+        }
+        
+    except TelegramError as e:
+        error_message = str(e)
+        
+        # Parse common Telegram errors
+        if "chat not found" in error_message.lower():
+            raise ValueError("Grup tidak ditemukan. Pastikan bot sudah ditambahkan ke grup ini.")
+        elif "bot was blocked" in error_message.lower():
+            raise ValueError("Bot diblokir di grup ini.")
+        elif "not enough rights" in error_message.lower() or "bot is not a member" in error_message.lower():
+            raise ValueError("Bot bukan member dari grup ini atau tidak memiliki akses yang cukup.")
+        else:
+            raise ValueError(f"Gagal mengambil info grup: {error_message}")
 
 
 def format_date_indonesian(dt: datetime) -> str:

@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 class TelegramGroupCreate(BaseModel):
     """Schema for creating a new Telegram group"""
     group_id: int
-    group_name: str
+    group_name: str = None  # Can be None if using auto-fetch from Telegram
 
 
 class TelegramGroupUpdate(BaseModel):
