@@ -13,6 +13,7 @@ from app.schemas.user_management import (
     UserListResponse,
     UpdateAdminRequest,
     UpdateStatusRequest,
+    UpdateAvatarRequest,
     SuccessResponse,
     ErrorResponse
 )
@@ -233,6 +234,45 @@ async def toggle_user_active_status(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to update user status"
+        )
+
+
+@router.patch("/users/{user_id}/avatar")
+async def update_user_avatar(
+    user_id: str,
+    request: UpdateAvatarRequest,
+    current_user: User = Depends(get_current_admin_user)
+):
+    """
+    Update user avatar (Admin only).
+    
+    Updates the avatar_url field for a specific user.
+    """
+    try:
+        # Find user by ID
+        user = await User.get(user_id)
+        
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        
+        # Update avatar
+        user.avatar_url = request.avatar
+        user.updated_at = datetime.utcnow()
+        await user.save()
+        
+        # Return success response
+        user_response = convert_user_to_management_response(user)
+        return SuccessResponse(success=True, data=user_response.dict())
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update user avatar"
         )
 
 

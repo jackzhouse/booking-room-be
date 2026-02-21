@@ -31,6 +31,11 @@ class UpdateStatusRequest(BaseModel):
     is_active: bool
 
 
+class UpdateAvatarRequest(BaseModel):
+    """Request schema for updating user avatar"""
+    avatar: str
+
+
 class SuccessResponse(BaseModel):
     """Generic success response wrapper"""
     success: bool = True
