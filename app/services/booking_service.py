@@ -89,6 +89,10 @@ async def create_booking(
     if not is_valid:
         raise ValueError(error_msg)
     
+    # Capitalize title and description for professional appearance
+    title = title.upper() if title else title
+    description = description.upper() if description else description
+    
     # Check for conflicts
     has_conflict, conflicting_booking = await check_booking_conflict(
         ObjectId(room_id),
@@ -103,7 +107,7 @@ async def create_booking(
     # Generate booking number
     booking_number = await generate_booking_number()
     
-    # Create booking
+    # Create booking (as draft)
     booking = Booking(
         booking_number=booking_number,
         user_id=user_id,
@@ -120,7 +124,8 @@ async def create_booking(
         description=description,
         start_time=start_time,
         end_time=end_time,
-        status="active"
+        status="active",
+        published=False  # Start as draft
     )
     
     await booking.insert()
@@ -138,6 +143,65 @@ async def create_booking(
             title=title,
             description=description,
             division=division
+        )
+    )
+    
+    # Note: No notification sent yet (booking is draft)
+    # User must call publish_booking() to publish and send notification
+    
+    return booking
+
+
+async def publish_booking(
+    booking_id: str,
+    user_id: ObjectId,
+    is_admin: bool = False
+) -> Booking:
+    """
+    Publish a draft booking and send notification to Telegram group.
+    
+    Raises:
+        ValueError: If booking not found or no permission
+    """
+    # Convert booking_id string to ObjectId
+    try:
+        booking_obj_id = ObjectId(booking_id)
+    except Exception:
+        raise ValueError("Invalid booking ID format")
+    
+    # Get existing booking
+    booking = await Booking.get(booking_obj_id)
+    if not booking:
+        raise ValueError("Booking tidak ditemukan")
+    
+    if booking.status != "active":
+        raise ValueError("Booking sudah dibatalkan")
+    
+    if booking.published:
+        raise ValueError("Booking sudah dipublish")
+    
+    # Check ownership or admin
+    if booking.user_id != user_id and not is_admin:
+        raise ValueError("Anda tidak memiliki akses untuk mempublish booking ini")
+    
+    # Mark as published
+    booking.published = True
+    booking.updated_at = datetime.now(settings.timezone)
+    await booking.save()
+    
+    # Create history record
+    await create_history(
+        booking_id=booking.id,
+        booking_number=booking.booking_number,
+        changed_by=user_id,
+        action="published",
+        new_data=HistoryData(
+            room_snapshot={"name": booking.room_snapshot.name},
+            start_time=booking.start_time,
+            end_time=booking.end_time,
+            title=booking.title,
+            description=booking.description,
+            division=booking.division
         )
     )
     
@@ -213,13 +277,13 @@ async def update_booking(
     update_data = {}
     
     if title is not None:
-        update_data["title"] = title
+        update_data["title"] = title.upper() if title else title
     
     if division is not None:
         update_data["division"] = division
     
     if description is not None:
-        update_data["description"] = description
+        update_data["description"] = description.upper() if description else description
     
     if room_id is not None:
         update_data["room_id"] = room_id_obj

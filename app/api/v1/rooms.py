@@ -127,10 +127,11 @@ async def get_room_schedule(
     
     logger.info(f"Querying schedule from {start_datetime} to {end_datetime}")
     
-    # Query bookings for this room within date range
+    # Query bookings for this room within date range (only published bookings)
     bookings = await Booking.find({
         "room_id": ObjectId(room_id),
         "status": "active",
+        "published": True,
         "start_time": {"$gte": start_datetime, "$lte": end_datetime}
     }).sort(Booking.start_time).to_list()
     

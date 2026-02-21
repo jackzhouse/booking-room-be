@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 class UserSnapshotResponse(BaseModel):
     """Snapshot of user data at booking time"""
     full_name: str
+    username: Optional[str] = None
     division: Optional[str] = None
     telegram_id: int
 
@@ -49,6 +50,7 @@ class BookingResponse(BaseModel):
     start_time: datetime
     end_time: datetime
     status: str
+    published: bool
     cancelled_at: Optional[datetime] = None
     cancelled_by: Optional[str] = None
     created_at: datetime

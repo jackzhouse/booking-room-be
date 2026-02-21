@@ -32,6 +32,7 @@ class Booking(Document):
     start_time: datetime
     end_time: datetime
     status: str = Field(default="active")  # active, cancelled
+    published: bool = Field(default=False)  # Whether booking is published to Telegram
     cancelled_at: Optional[datetime] = None
     cancelled_by: Optional[ObjectId] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)

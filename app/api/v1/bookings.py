@@ -10,6 +10,7 @@ from app.schemas.booking import (
 )
 from app.services.booking_service import (
     create_booking,
+    publish_booking,
     update_booking,
     cancel_booking,
     get_user_bookings
@@ -131,6 +132,32 @@ async def create_new_booking(
             detail=str(e)
         )
     except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+
+@router.post("/{booking_id}/publish", response_model=BookingResponse)
+async def publish_existing_booking(
+    booking_id: str,
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Publish a draft booking and send notification to Telegram group.
+    
+    Only booking owner or admin can publish.
+    """
+    try:
+        booking = await publish_booking(
+            booking_id=booking_id,
+            user_id=current_user.id,
+            is_admin=current_user.is_admin
+        )
+        
+        return convert_booking_to_response(booking)
+        
+    except ValueError as e:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)

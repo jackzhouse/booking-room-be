@@ -99,8 +99,8 @@ async def notify_new_booking(booking: Booking):
         f"Informasi reservasi untuk hari {format_date_indonesian(booking.start_time)}:\n\n"
         f"◽️ Acara: {booking.title}\n"
         f"◽️ Deskripsi: {booking.description if booking.description else '-'}\n"
-        f"◽️ Oleh: {user_info}\n"
-        f"◽️ Jam: {format_time_range(booking.start_time, booking.end_time)}\n\n"
+        f"◽️ Jam: {format_time_range(booking.start_time, booking.end_time)}\n"
+        f"◽️ PIC: {user_info}\n\n"
         f"Rekan-rekan yang membutuhkan ruangan pada jam tersebut diharapkan dapat berkoordinasi langsung dengan @{username_display}. Terima kasih."
     )
     
@@ -146,10 +146,10 @@ async def notify_booking_updated(booking: Booking, old_data: dict):
         has_changes = True
     
     if has_changes:
-        message += f"◽️ Oleh: @{username_display}\n\n"
+        message += f"◽️ PIC: @{username_display}\n\n"
         message += f"Mohon perhatikan perubahan jadwal. Terima kasih."
     else:
-        message += f"◽️ Oleh: @{username_display}"
+        message += f"◽️ PIC: @{username_display}"
     
     await send_telegram_message(group_id, message)
 
@@ -171,8 +171,8 @@ async def notify_booking_cancelled(booking: Booking):
         f"Reservasi telah dibatalkan:\n\n"
         f"◽️ Acara: {booking.title}\n"
         f"◽️ Deskripsi: {booking.description if booking.description else '-'}\n"
-        f"◽️ Oleh: @{username_display}\n"
-        f"◽️ Waktu: {format_time_range(booking.start_time, booking.end_time)}\n\n"
+        f"◽️ Waktu: {format_time_range(booking.start_time, booking.end_time)}\n"
+        f"◽️ PIC: @{username_display}\n\n"
         f"Ruangan kini tersedia pada jam tersebut. Terima kasih."
     )
     
