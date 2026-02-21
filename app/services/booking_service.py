@@ -90,8 +90,8 @@ async def create_booking(
         raise ValueError(error_msg)
     
     # Capitalize title and description for professional appearance
-    title = title.upper() if title else title
-    description = description.upper() if description else description
+    title = title.title() if title else title
+    description = description.title() if description else description
     
     # Check for conflicts
     has_conflict, conflicting_booking = await check_booking_conflict(
@@ -277,13 +277,13 @@ async def update_booking(
     update_data = {}
     
     if title is not None:
-        update_data["title"] = title.upper() if title else title
+        update_data["title"] = title.title() if title else title
     
     if division is not None:
         update_data["division"] = division
     
     if description is not None:
-        update_data["description"] = description.upper() if description else description
+        update_data["description"] = description.title() if description else description
     
     if room_id is not None:
         update_data["room_id"] = room_id_obj

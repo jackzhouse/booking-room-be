@@ -589,7 +589,7 @@ showModal({
 3. **Draft bookings bisa dihapus** tanpa notifikasi
 4. **Hanya published bookings** yang kirim notifikasi ke Telegram
 5. **Username otomatis terupdate** saat user login (tidak perlu perubahan di FE)
-6. **Title dan description otomatis UPPERCASE** (backend handle)
+6. **Title dan description otomatis Capitalize (Title Case)** (backend handle)
 
 ### API Endpoints
 - `POST /api/v1/bookings` - Create booking (draft)
@@ -645,7 +645,7 @@ interface BookingResponse {
 - [ ] Update published booking → notifikasi dikirim
 - [ ] Cancel published booking → notifikasi dikirim
 - [ ] Username tampil dengan @ tag
-- [ ] Title dan description dalam UPPERCASE
+- [ ] Title dan description dalam Capitalize (Title Case)
 
 ---
 
