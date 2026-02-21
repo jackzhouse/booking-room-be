@@ -233,38 +233,22 @@ async def notify_booking_updated(booking: Booking, old_data: dict):
     # Format username with @ tag if available
     username_display = booking.user_snapshot.username if booking.user_snapshot.username else booking.user_snapshot.full_name
     
+    # Format user info
+    user_info = f"{booking.user_snapshot.full_name}"
+    if booking.user_snapshot.division:
+        user_info += f" ({booking.user_snapshot.division})"
+    user_info += f" — @{username_display}"
+    
     message = (
         f"📍 UPDATE BOOKING: {booking.room_snapshot.name.upper()}\n"
         f"#{booking.booking_number}\n\n"
-        f"Update reservasi:\n\n"
+        f"Informasi reservasi untuk hari {format_date_indonesian(booking.start_time)}:\n\n"
+        f"◽️ Keperluan: {booking.title}\n"
+        f"◽️ Deskripsi: {booking.description if booking.description else '-'}\n"
+        f"◽️ Jam: {format_time_range(booking.start_time, booking.end_time)}\n"
+        f"◽️ PIC: {user_info}\n\n"
+        f"Mohon perhatikan perubahan jadwal. Terima kasih."
     )
-    
-    # Check what changed
-    has_changes = False
-    if old_data.get("title") and old_data["title"] != booking.title:
-        message += f"◽️ Keperluan: {old_data['title']} → {booking.title}\n"
-        has_changes = True
-    
-    if old_data.get("description") and old_data["description"] != booking.description:
-        old_desc = old_data['description'] if old_data['description'] else '-'
-        new_desc = booking.description if booking.description else '-'
-        message += f"◽️ Deskripsi: {old_desc} → {new_desc}\n"
-        has_changes = True
-    
-    if old_data.get("room_snapshot") and old_data["room_snapshot"].get("name") != booking.room_snapshot.name:
-        message += f"◽️ Ruangan: {old_data['room_snapshot']['name']} → {booking.room_snapshot.name}\n"
-        has_changes = True
-    
-    if old_data.get("start_time") and old_data.get("end_time"):
-        new_time = format_time_range(booking.start_time, booking.end_time)
-        message += f"◽️ Waktu baru: {new_time}\n"
-        has_changes = True
-    
-    if has_changes:
-        message += f"◽️ PIC: @{username_display}\n\n"
-        message += f"Mohon perhatikan perubahan jadwal. Terima kasih."
-    else:
-        message += f"◽️ PIC: @{username_display}"
     
     await send_telegram_message(group_id, message)
 
