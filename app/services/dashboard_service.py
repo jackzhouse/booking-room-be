@@ -20,14 +20,23 @@ async def get_dashboard_statistics() -> Dict[str, Any]:
     # Get current time in configured timezone (Asia/Jakarta)
     now = datetime.now(settings.timezone)
     
-    # Calculate today's date range
-    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
-    today_end = today_start + timedelta(days=1)
+    # Calculate today's date range in local timezone
+    today_start_local = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    today_end_local = today_start_local + timedelta(days=1)
+    
+    # Convert to UTC for MongoDB queries (MongoDB stores in UTC)
+    # Use timestamp conversion to properly handle timezone
+    today_start = datetime.utcfromtimestamp(today_start_local.timestamp())
+    today_end = datetime.utcfromtimestamp(today_end_local.timestamp())
     
     # Calculate this week's date range (Monday to Sunday)
     weekday = now.weekday()  # Monday = 0, Sunday = 6
-    week_start = (today_start - timedelta(days=weekday)).replace(hour=0, minute=0, second=0, microsecond=0)
-    week_end = week_start + timedelta(days=7)
+    week_start_local = (today_start_local - timedelta(days=weekday)).replace(hour=0, minute=0, second=0, microsecond=0)
+    week_end_local = week_start_local + timedelta(days=7)
+    
+    # Convert to UTC for MongoDB queries
+    week_start = datetime.utcfromtimestamp(week_start_local.timestamp())
+    week_end = datetime.utcfromtimestamp(week_end_local.timestamp())
     
     # Query bookings for today (all statuses)
     bookings_today = await Booking.find({
