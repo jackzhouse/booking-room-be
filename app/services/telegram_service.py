@@ -212,7 +212,7 @@ async def notify_new_booking(booking: Booking):
     message = (
         f"📍 INFO BOOKING: {booking.room_snapshot.name.upper()}\n\n"
         f"Informasi reservasi untuk hari {format_date_indonesian(booking.start_time)}:\n\n"
-        f"◽️ Acara: {booking.title}\n"
+        f"◽️ Keperluan: {booking.title}\n"
         f"◽️ Deskripsi: {booking.description if booking.description else '-'}\n"
         f"◽️ Jam: {format_time_range(booking.start_time, booking.end_time)}\n"
         f"◽️ PIC: {user_info}\n\n"
@@ -242,7 +242,7 @@ async def notify_booking_updated(booking: Booking, old_data: dict):
     # Check what changed
     has_changes = False
     if old_data.get("title") and old_data["title"] != booking.title:
-        message += f"◽️ Acara: {old_data['title']} → {booking.title}\n"
+        message += f"◽️ Keperluan: {old_data['title']} → {booking.title}\n"
         has_changes = True
     
     if old_data.get("description") and old_data["description"] != booking.description:
@@ -284,7 +284,7 @@ async def notify_booking_cancelled(booking: Booking):
         f"📍 CANCEL BOOKING: {booking.room_snapshot.name.upper()}\n"
         f"#{booking.booking_number}\n\n"
         f"Reservasi telah dibatalkan:\n\n"
-        f"◽️ Acara: {booking.title}\n"
+        f"◽️ Keperluan: {booking.title}\n"
         f"◽️ Deskripsi: {booking.description if booking.description else '-'}\n"
         f"◽️ Waktu: {format_time_range(booking.start_time, booking.end_time)}\n"
         f"◽️ PIC: @{username_display}\n\n"
