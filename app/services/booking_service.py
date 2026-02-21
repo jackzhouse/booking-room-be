@@ -109,6 +109,7 @@ async def create_booking(
         user_id=user_id,
         user_snapshot=UserSnapshot(
             full_name=user.full_name,
+            username=user.username,
             division=user.division,
             telegram_id=user.telegram_id
         ),

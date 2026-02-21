@@ -8,6 +8,7 @@ from bson import ObjectId
 class UserSnapshot(BaseModel):
     """Snapshot of user data at booking time"""
     full_name: str
+    username: Optional[str] = None
     division: Optional[str] = None
     telegram_id: int
 

@@ -85,26 +85,22 @@ async def notify_new_booking(booking: Booking):
     if not group_id:
         return
     
-    message = (
-        f"📅 *Booking Baru*\n\n"
-        f"👤 Nama      : {booking.user_snapshot.full_name}\n"
-    )
+    # Format username with @ tag if available
+    username_display = booking.user_snapshot.username if booking.user_snapshot.username else booking.user_snapshot.full_name
     
+    # Format user info
+    user_info = f"{booking.user_snapshot.full_name}"
     if booking.user_snapshot.division:
-        message += f"🏢 Divisi    : {booking.user_snapshot.division}\n"
+        user_info += f" ({booking.user_snapshot.division})"
+    user_info += f" — @{username_display}"
     
-    message += (
-        f"🚪 Ruangan   : {booking.room_snapshot.name}\n"
-        f"📌 Keperluan : {booking.title}\n"
-    )
-    
-    if booking.description:
-        message += f"📝 Deskripsi : {booking.description}\n"
-    
-    message += (
-        f"🕐 Waktu     : {format_date_indonesian(booking.start_time)} | "
-        f"{format_time_range(booking.start_time, booking.end_time)}\n\n"
-        f"🆔 #{booking.booking_number}"
+    message = (
+        f"📍 INFO BOOKING: {booking.room_snapshot.name.upper()}\n\n"
+        f"Informasi reservasi untuk hari {format_date_indonesian(booking.start_time)}:\n\n"
+        f"◽️ Acara: {booking.title}\n"
+        f"◽️ Oleh: {user_info}\n"
+        f"◽️ Jam: {format_time_range(booking.start_time, booking.end_time)}\n\n"
+        f"Rekan-rekan yang membutuhkan ruangan pada jam tersebut diharapkan dapat berkoordinasi langsung dengan @{username_display}. Terima kasih."
     )
     
     await send_telegram_message(group_id, message)
@@ -118,22 +114,31 @@ async def notify_booking_updated(booking: Booking, old_data: dict):
     if not group_id:
         return
     
+    # Format username with @ tag if available
+    username_display = booking.user_snapshot.username if booking.user_snapshot.username else booking.user_snapshot.full_name
+    
     message = (
-        f"✏️ *Booking Diubah*\n\n"
-        f"👤 Oleh : {booking.user_snapshot.full_name}\n"
-        f"🆔 #{booking.booking_number}\n\n"
-        f"Perubahan:\n"
+        f"📍 UPDATE BOOKING: {booking.room_snapshot.name.upper()}\n"
+        f"#{booking.booking_number}\n\n"
+        f"Update reservasi:\n\n"
     )
     
     # Check what changed
+    has_changes = False
     if old_data.get("room_snapshot") and old_data["room_snapshot"].get("name") != booking.room_snapshot.name:
-        message += f"🚪 Ruangan : {old_data['room_snapshot']['name']} → {booking.room_snapshot.name}\n"
+        message += f"◽️ Perubahan: {old_data['room_snapshot']['name']} → {booking.room_snapshot.name}\n"
+        has_changes = True
     
     if old_data.get("start_time") and old_data.get("end_time"):
-        old_time = f"{old_data['start_time'].strftime('%H:%M')}–{old_data['end_time'].strftime('%H:%M')} WIB"
         new_time = format_time_range(booking.start_time, booking.end_time)
-        if old_time != new_time:
-            message += f"🕐 Waktu   : {old_time} → {new_time}\n"
+        message += f"◽️ Waktu baru: {new_time}\n"
+        has_changes = True
+    
+    if has_changes:
+        message += f"◽️ Oleh: @{username_display}\n\n"
+        message += f"Mohon perhatikan perubahan jadwal. Terima kasih."
+    else:
+        message += f"◽️ Oleh: @{username_display}"
     
     await send_telegram_message(group_id, message)
 
@@ -146,15 +151,17 @@ async def notify_booking_cancelled(booking: Booking):
     if not group_id:
         return
     
+    # Format username with @ tag if available
+    username_display = booking.user_snapshot.username if booking.user_snapshot.username else booking.user_snapshot.full_name
+    
     message = (
-        f"❌ *Booking Dibatalkan*\n\n"
-        f"👤 Dibatalkan oleh : {booking.user_snapshot.full_name}\n"
-        f"🆔 #{booking.booking_number}\n\n"
-        f"Detail yang dibatalkan:\n"
-        f"🚪 {booking.room_snapshot.name}\n"
-        f"📌 {booking.title}\n"
-        f"🕐 {format_date_indonesian(booking.start_time)} | "
-        f"{format_time_range(booking.start_time, booking.end_time)}"
+        f"📍 CANCEL BOOKING: {booking.room_snapshot.name.upper()}\n"
+        f"#{booking.booking_number}\n\n"
+        f"Reservasi telah dibatalkan:\n\n"
+        f"◽️ Acara: {booking.title}\n"
+        f"◽️ Oleh: @{username_display}\n"
+        f"◽️ Waktu: {format_time_range(booking.start_time, booking.end_time)}\n\n"
+        f"Ruangan kini tersedia pada jam tersebut. Terima kasih."
     )
     
     await send_telegram_message(group_id, message)
