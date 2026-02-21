@@ -165,7 +165,7 @@ async def publish_existing_booking(
         )
 
 
-@router.patch("/{booking_id}", response_model=BookingResponse)
+@router.put("/{booking_id}", response_model=BookingResponse)
 async def update_existing_booking(
     booking_id: str,
     booking_data: BookingUpdate,

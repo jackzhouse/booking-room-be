@@ -181,7 +181,7 @@ async def create_room(
     )
 
 
-@router.patch("/{room_id}", response_model=RoomResponse)
+@router.put("/{room_id}", response_model=RoomResponse)
 async def update_room(
     room_id: str,
     room_data: RoomUpdate,
@@ -215,7 +215,7 @@ async def update_room(
     )
 
 
-@router.patch("/{room_id}/toggle")
+@router.put("/{room_id}/toggle")
 async def toggle_room_status(
     room_id: str,
     current_user: User = Depends(get_current_admin_user)

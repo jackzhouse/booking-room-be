@@ -157,7 +157,7 @@ async def get_setting(
     return SettingResponse(**setting_dict)
 
 
-@router.patch("/settings/{key}", response_model=SettingResponse)
+@router.put("/settings/{key}", response_model=SettingResponse)
 async def update_setting(
     key: str,
     setting_data: SettingUpdate,
