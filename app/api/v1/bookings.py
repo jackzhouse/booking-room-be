@@ -1,5 +1,6 @@
 from typing import List, Optional
-from fastapi import APIRouter, Depends, HTTPException, status
+from datetime import datetime, date
+from fastapi import APIRouter, Depends, HTTPException, status, Query
 from bson import ObjectId
 
 from app.models.booking import Booking
@@ -44,7 +45,7 @@ async def get_my_bookings(
     current_user: User = Depends(get_current_active_user)
 ):
     """
-    Get all bookings for the current user (alias for /bookings).
+    Get all bookings for the current user.
     Optionally filter by status (active/cancelled).
     """
     bookings = await get_user_bookings(current_user.id, status)
@@ -53,14 +54,59 @@ async def get_my_bookings(
 
 @router.get("", response_model=List[BookingResponse])
 async def get_bookings(
-    status: Optional[str] = None,
+    room_id: Optional[str] = Query(None, description="Filter by specific room ID"),
+    start_date: Optional[date] = Query(None, description="Start date filter (YYYY-MM-DD)"),
+    end_date: Optional[date] = Query(None, description="End date filter (YYYY-MM-DD)"),
     current_user: User = Depends(get_current_active_user)
 ):
     """
-    Get all bookings for the current user.
-    Optionally filter by status (active/cancelled).
+    Get all published bookings across all rooms (or filtered by room/date).
+    
+    This endpoint allows users to view the schedule before making a booking.
+    Only shows published and active bookings (excludes draft and cancelled).
+    
+    Query Parameters:
+    - room_id: Optional filter to show bookings for a specific room only
+    - start_date: Optional start date filter (YYYY-MM-DD format)
+    - end_date: Optional end date filter (YYYY-MM-DD format)
+    
+    If end_date is not provided, it defaults to start_date.
+    If no date filters are provided, returns all published bookings.
+    
+    Returns:
+        List of published bookings with user name and division info.
     """
-    bookings = await get_user_bookings(current_user.id, status)
+    # Build query for published, active bookings only
+    query = {
+        "status": "active",
+        "published": True
+    }
+    
+    # Add room filter if provided
+    if room_id:
+        try:
+            room_obj_id = ObjectId(room_id)
+            query["room_id"] = room_obj_id
+        except Exception:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid room ID format"
+            )
+    
+    # Add date filters if provided
+    if start_date:
+        start_datetime = datetime.combine(start_date, datetime.min.time())
+        if end_date:
+            end_datetime = datetime.combine(end_date, datetime.max.time())
+        else:
+            end_datetime = datetime.combine(start_date, datetime.max.time())
+        
+        query["start_time"] = {"$gte": start_datetime, "$lte": end_datetime}
+    
+    # Query bookings
+    bookings = await Booking.find(query).sort(Booking.start_time).to_list()
+    
+    # Convert and return
     return [convert_booking_to_response(booking) for booking in bookings]
 
 

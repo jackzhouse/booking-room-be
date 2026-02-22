@@ -79,12 +79,13 @@ async def verify_telegram_group(
 
 @router.get("", response_model=TelegramGroupListResponse)
 async def get_telegram_groups_list(
-    current_user: User = Depends(get_current_admin_user)
+    current_user: User = Depends(get_current_active_user)
 ):
     """
     Get all active Telegram groups.
     
-    Only admin can access this endpoint.
+    All authenticated users can access this endpoint to see available groups
+    when creating bookings.
     """
     groups = await get_all_telegram_groups()
     return TelegramGroupListResponse(
