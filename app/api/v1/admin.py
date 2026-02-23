@@ -513,7 +513,7 @@ async def get_scheduler_status(
                 # Make booking.end_time timezone-aware if it's naive
                 end_time = booking.end_time
                 if end_time.tzinfo is None:
-                    end_time = settings.timezone.localize(end_time)
+                    end_time = end_time.replace(tzinfo=settings.timezone)
                 ended_ago = (now - end_time).total_seconds() / 60
                 booking_dict["ended_minutes_ago"] = ended_ago
             else:
