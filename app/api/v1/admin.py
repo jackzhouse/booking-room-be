@@ -486,38 +486,49 @@ async def get_scheduler_status(
         - pending_count: Number of bookings needing cleanup notification
         - recent_ended: List of recently ended bookings (pending or notified)
     """
-    now = datetime.now(settings.timezone)
-    
-    # Get pending cleanup count
-    pending_count = await get_pending_cleanup_count()
-    
-    # Get recent ended bookings (both pending and notified)
-    recent_ended = await get_recent_ended_bookings(limit=limit)
-    
-    # Convert bookings to response format
-    bookings_data = []
-    for booking in recent_ended:
-        booking_dict = booking.dict(by_alias=True)
-        if "_id" in booking_dict and booking_dict["_id"] is not None:
-            booking_dict["_id"] = str(booking_dict["_id"])
-        if "user_id" in booking_dict and booking_dict["user_id"] is not None:
-            booking_dict["user_id"] = str(booking_dict["user_id"])
-        if "room_id" in booking_dict and booking_dict["room_id"] is not None:
-            booking_dict["room_id"] = str(booking_dict["room_id"])
-        if "cancelled_by" in booking_dict and booking_dict["cancelled_by"] is not None:
-            booking_dict["cancelled_by"] = str(booking_dict["cancelled_by"])
+    try:
+        now = datetime.now(settings.timezone)
         
-        # Add ended_ago field
-        ended_ago = (now - booking.end_time).total_seconds() / 60
-        booking_dict["ended_minutes_ago"] = ended_ago
+        # Get pending cleanup count
+        pending_count = await get_pending_cleanup_count()
         
-        bookings_data.append(booking_dict)
-    
-    return {
-        "pending_count": pending_count,
-        "recent_ended": bookings_data,
-        "scheduler_info": {
-            "runs_every_minutes": 5,
-            "status": "active"
+        # Get recent ended bookings (both pending and notified)
+        recent_ended = await get_recent_ended_bookings(limit=limit)
+        
+        # Convert bookings to response format
+        bookings_data = []
+        for booking in recent_ended:
+            booking_dict = booking.dict(by_alias=True)
+            if "_id" in booking_dict and booking_dict["_id"] is not None:
+                booking_dict["_id"] = str(booking_dict["_id"])
+            if "user_id" in booking_dict and booking_dict["user_id"] is not None:
+                booking_dict["user_id"] = str(booking_dict["user_id"])
+            if "room_id" in booking_dict and booking_dict["room_id"] is not None:
+                booking_dict["room_id"] = str(booking_dict["room_id"])
+            if "cancelled_by" in booking_dict and booking_dict["cancelled_by"] is not None:
+                booking_dict["cancelled_by"] = str(booking_dict["cancelled_by"])
+            
+            # Add ended_ago field with error handling
+            if booking.end_time:
+                ended_ago = (now - booking.end_time).total_seconds() / 60
+                booking_dict["ended_minutes_ago"] = ended_ago
+            else:
+                booking_dict["ended_minutes_ago"] = None
+            
+            bookings_data.append(booking_dict)
+        
+        return {
+            "pending_count": pending_count,
+            "recent_ended": bookings_data,
+            "scheduler_info": {
+                "runs_every_minutes": 5,
+                "status": "active"
+            }
         }
-    }
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error getting scheduler status: {str(e)}"
+        )
