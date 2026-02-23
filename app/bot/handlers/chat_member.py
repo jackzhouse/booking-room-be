@@ -23,7 +23,7 @@ async def handle_message_with_new_member(update: Update, context: ContextTypes.D
     if not message.new_chat_members:
         return
     
-    # Get first new member from the list
+    # Get first new member from list
     new_member = message.new_chat_members[0]
     chat = message.chat
     
@@ -31,17 +31,17 @@ async def handle_message_with_new_member(update: Update, context: ContextTypes.D
     bot = context.bot
     bot_id = bot.id
     
-    logger.info(f"📊 New chat member event detected:")
-    logger.info(f"   - New member ID: {new_member.user.id}")
+    logger.info("📊 New chat member event detected:")
+    logger.info(f"   - New member ID: {new_member.id}")
     logger.info(f"   - Bot ID: {bot_id}")
-    logger.info(f"   - Is bot: {new_member.user.is_bot}")
-    logger.info(f"   - Is bot itself: {new_member.user.id == bot_id}")
+    logger.info(f"   - Is bot: {new_member.is_bot}")
+    logger.info(f"   - Is bot itself: {new_member.id == bot_id}")
     logger.info(f"   - Chat ID: {chat.id}")
     logger.info(f"   - Chat type: {chat.type}")
     logger.info(f"   - Chat title: {chat.title}")
     
     # Only proceed if new member is bot itself
-    if not new_member.user.is_bot or new_member.user.id != bot_id:
+    if not new_member.is_bot or new_member.id != bot_id:
         logger.info("❌ New member is not bot, skipping...")
         return
     
@@ -50,7 +50,7 @@ async def handle_message_with_new_member(update: Update, context: ContextTypes.D
     group_name = chat.title or f"Group {group_id}"
     
     logger.info(f"🎉 Bot invited to group: {group_name} (ID: {group_id})")
-    logger.info(f"🔄 Starting group registration process...")
+    logger.info("🔄 Starting group registration process...")
     
     try:
         # Check if group already exists
@@ -70,7 +70,7 @@ async def handle_message_with_new_member(update: Update, context: ContextTypes.D
             return
         
         # Create new Telegram group record
-        logger.info(f"💾 Creating new group record in database...")
+        logger.info("💾 Creating new group record in database...")
         new_group = TelegramGroup(
             group_id=group_id,
             group_name=group_name,
@@ -81,7 +81,7 @@ async def handle_message_with_new_member(update: Update, context: ContextTypes.D
         logger.info(f"✅ Successfully registered new group: {group_name} (ID: {group_id})")
         
         # Send welcome message to group
-        logger.info(f"📤 Sending welcome message to group...")
+        logger.info("📤 Sending welcome message to group...")
         welcome_msg = (
             f"🎉 *Bot Berhasil Bergabung!*\n\n"
             f"Grup ini telah terdaftar di sistem:\n"
