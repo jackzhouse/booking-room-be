@@ -23,24 +23,43 @@ async def check_and_notify_ended_bookings():
     1. Sends cleanup notification to verification group
     2. Marks hrd_notified = True
     """
+    print(f"[Scheduler] =======================================")
+    print(f"[Scheduler] check_and_notify_ended_bookings() called")
+    
     now = datetime.now(settings.timezone)
+    print(f"[Scheduler] Current time (Asia/Jakarta): {now}")
     
     # Find bookings that need cleanup notification
-    bookings = await Booking.find({
+    query = {
         "status": "active",
         "published": True,
         "end_time": {"$lt": now},
         "hrd_notified": False
-    }).to_list()
+    }
+    print(f"[Scheduler] Query: {query}")
     
-    if not bookings:
-        return
+    bookings = await Booking.find(query).to_list()
     
     print(f"[Scheduler] Found {len(bookings)} bookings needing cleanup notification")
     
+    if not bookings:
+        print(f"[Scheduler] No bookings to process")
+        return
+    
     for booking in bookings:
+        print(f"[Scheduler] --------------------------------------")
+        print(f"[Scheduler] Processing booking: {booking.booking_number}")
+        print(f"[Scheduler]   - Room: {booking.room_snapshot.name}")
+        print(f"[Scheduler]   - Start: {booking.start_time}")
+        print(f"[Scheduler]   - End: {booking.end_time}")
+        print(f"[Scheduler]   - Status: {booking.status}")
+        print(f"[Scheduler]   - Published: {booking.published}")
+        print(f"[Scheduler]   - HRD Notified: {booking.hrd_notified}")
+        print(f"[Scheduler]   - Verification Group ID: {booking.verification_group_id}")
+        
         try:
             # Send cleanup notification
+            print(f"[Scheduler]   - Sending notification to verification group...")
             await notify_verification_group_cleanup(booking)
             
             # Mark as notified
@@ -48,10 +67,15 @@ async def check_and_notify_ended_bookings():
             booking.updated_at = now
             await booking.save()
             
-            print(f"[Scheduler] Cleanup notification sent for booking {booking.booking_number}")
+            print(f"[Scheduler] ✓ Cleanup notification sent for booking {booking.booking_number}")
+            print(f"[Scheduler] ✓ hrd_notified set to True")
             
         except Exception as e:
-            print(f"[Scheduler] Error processing booking {booking.booking_number}: {e}")
+            print(f"[Scheduler] ✗ Error processing booking {booking.booking_number}: {e}")
+            import traceback
+            traceback.print_exc()
+    
+    print(f"[Scheduler] =======================================")
 
 
 async def get_pending_cleanup_count() -> int:
