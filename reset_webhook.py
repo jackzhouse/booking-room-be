@@ -28,7 +28,7 @@ async def reset_webhook():
     await bot.set_webhook(
         url=webhook_url,
         drop_pending_updates=True,
-        allowed_updates=["message", "callback_query", "chat_member"]
+        allowed_updates=["message", "callback_query", "chat_member", "my_chat_member"]
     )
     print(f"✅ Webhook set successfully")
     
@@ -41,7 +41,7 @@ async def reset_webhook():
     print(f"   Max Connections: {webhook_info.max_connections}")
     
     # Verifikasi allowed_updates
-    expected_updates = ["message", "callback_query", "chat_member"]
+    expected_updates = ["message", "callback_query", "chat_member", "my_chat_member"]
     if set(webhook_info.allowed_updates) == set(expected_updates):
         print(f"\n✅ Allowed updates configuration is CORRECT!")
     else:

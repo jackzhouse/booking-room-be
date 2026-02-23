@@ -1,6 +1,6 @@
 import logging
 from telegram import Update
-from telegram.ext import ContextTypes, ChatMemberHandler, MyChatMemberHandler
+from telegram.ext import ContextTypes, TypeHandler
 
 from app.models.telegram_group import TelegramGroup
 from app.core.config import settings
@@ -8,27 +8,27 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 
-async def handle_chat_member_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def handle_my_chat_member_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
-    Handle chat member updates.
-    This function is triggered when a user's chat membership status changes.
+    Handle my_chat_member updates.
+    This function is triggered when the bot's own membership status changes.
     We use this to automatically register Telegram groups when the bot is invited.
     """
-    if not update.chat_member:
+    if not update.my_chat_member:
         return
     
     # Get the bot's user ID
     bot = context.bot
     bot_id = bot.id
     
-    # Get the chat member update info
-    chat_member_update = update.chat_member
-    new_member = chat_member_update.new_chat_member
-    old_member = chat_member_update.old_chat_member
-    chat = chat_member_update.chat
+    # Get the my_chat_member update info
+    my_chat_member_update = update.my_chat_member
+    new_member = my_chat_member_update.new_chat_member
+    old_member = my_chat_member_update.old_chat_member
+    chat = my_chat_member_update.chat
     
-    # Log all chat member updates for debugging
-    logger.info(f"📊 Chat member update received:")
+    # Log all my_chat_member updates for debugging
+    logger.info(f"📊 My chat member update received:")
     logger.info(f"   - User ID: {new_member.user.id}")
     logger.info(f"   - Bot ID: {bot_id}")
     logger.info(f"   - Is bot: {new_member.user.id == bot_id}")
@@ -38,21 +38,15 @@ async def handle_chat_member_update(update: Update, context: ContextTypes.DEFAUL
     logger.info(f"   - Chat type: {chat.type}")
     logger.info(f"   - Chat title: {chat.title}")
     
-    # Only proceed if the status change involves the bot itself
-    if new_member.user.id != bot_id:
-        logger.info("❌ Update is for another user, skipping...")
-        return
+    # Get group information
+    group_id = chat.id
+    group_name = chat.title or f"Group {group_id}"
     
     # Only proceed if the bot became a member/admin/creator (was not a member before)
-    # Bot can be invited as: member, administrator, or creator
     valid_new_statuses = ["member", "administrator", "creator"]
     invalid_old_statuses = ["left", "kicked", "restricted", "banned"]
     
     if new_member.status in valid_new_statuses and old_member.status in invalid_old_statuses:
-        # Get group information
-        group_id = chat.id
-        group_name = chat.title or f"Group {group_id}"
-        
         logger.info(f"🎉 Bot invited to group: {group_name} (ID: {group_id})")
         logger.info(f"🔄 Starting group registration process...")
         
@@ -117,9 +111,6 @@ async def handle_chat_member_update(update: Update, context: ContextTypes.DEFAUL
     
     # Handle bot being removed from group
     elif new_member.status in ["left", "kicked"] and old_member.status == "member":
-        group_id = chat.id
-        group_name = chat.title or f"Group {group_id}"
-        
         logger.info(f"👋 Bot removed from group: {group_name} (ID: {group_id})")
         
         try:
@@ -135,13 +126,14 @@ async def handle_chat_member_update(update: Update, context: ContextTypes.DEFAUL
             logger.error(f"❌ Error deactivating group {group_name}: {str(e)}")
 
 
+
 def get_chat_member_handler():
     """
-    Create and return a MyChatMemberHandler for bot invite detection.
-    MyChatMemberHandler specifically handles the bot's own membership changes.
+    Create and return a TypeHandler for my_chat_member updates.
+    This handler is specifically for the bot's own membership changes.
     """
-    return MyChatMemberHandler(
-        handle_chat_member_update,
-        MyChatMemberHandler.MY_CHAT_MEMBER,
+    return TypeHandler(
+        update_type="my_chat_member",
+        callback=handle_my_chat_member_update,
         block=False  # Don't block other handlers from running
     )

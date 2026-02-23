@@ -73,13 +73,14 @@ async def handle_webhook_update(data: dict, context: ContextTypes.DEFAULT_TYPE):
     app = await get_application()
     
     # Log the incoming update type for debugging
-    update_type = data.get("update_type") if isinstance(data, dict) else "unknown"
     if "message" in data:
         logger.info(f"📨 Received MESSAGE update")
     elif "callback_query" in data:
         logger.info(f"📨 Received CALLBACK_QUERY update")
+    elif "my_chat_member" in data:
+        logger.info(f"🎉 Received MY_CHAT_MEMBER update (THIS IS WHAT WE WANT!)")
     elif "chat_member" in data:
-        logger.info(f"📨 Received CHAT_MEMBER update (THIS IS WHAT WE WANT!)")
+        logger.info(f"📨 Received CHAT_MEMBER update (other user)")
     elif "edited_message" in data:
         logger.info(f"📨 Received EDITED_MESSAGE update")
     else:
@@ -92,8 +93,10 @@ async def handle_webhook_update(data: dict, context: ContextTypes.DEFAULT_TYPE):
     # Log if update was successfully parsed
     if update:
         logger.info(f"✅ Update parsed successfully: {update.update_id}")
-        if update.chat_member:
-            logger.info(f"✅ Chat member update detected in parsed Update object!")
+        if update.my_chat_member:
+            logger.info(f"✅ MY_CHAT_MEMBER update detected in parsed Update object!")
+        elif update.chat_member:
+            logger.info(f"✅ CHAT_MEMBER update detected in parsed Update object!")
     else:
         logger.error(f"❌ Failed to parse update from data")
     
@@ -116,9 +119,9 @@ async def set_webhook():
         await application.bot.set_webhook(
             url=webhook_url,
             drop_pending_updates=True,
-            allowed_updates=["message", "callback_query", "chat_member"]
+            allowed_updates=["message", "callback_query", "chat_member", "my_chat_member"]
         )
-        logger.info("✅ Telegram webhook set successfully")
+        logger.info("✅ Telegram webhook set successfully with allowed_updates: message, callback_query, chat_member, my_chat_member")
         await application.shutdown()
     except Exception as e:
         logger.error(f"❌ Error setting webhook: {str(e)}")
