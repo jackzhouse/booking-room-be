@@ -487,8 +487,6 @@ async def get_scheduler_status(
         - recent_ended: List of recently ended bookings (pending or notified)
     """
     try:
-        now = datetime.now(settings.timezone)
-        
         # Get pending cleanup count
         pending_count = await get_pending_cleanup_count()
         
@@ -508,16 +506,8 @@ async def get_scheduler_status(
             if "cancelled_by" in booking_dict and booking_dict["cancelled_by"] is not None:
                 booking_dict["cancelled_by"] = str(booking_dict["cancelled_by"])
             
-            # Add ended_ago field with error handling
-            if booking.end_time:
-                # Make booking.end_time timezone-aware if it's naive
-                end_time = booking.end_time
-                if end_time.tzinfo is None:
-                    end_time = end_time.replace(tzinfo=settings.timezone)
-                ended_ago = (now - end_time).total_seconds() / 60
-                booking_dict["ended_minutes_ago"] = ended_ago
-            else:
-                booking_dict["ended_minutes_ago"] = None
+            # Skip ended_minutes_ago calculation for now to avoid timezone issues
+            booking_dict["ended_minutes_ago"] = None
             
             bookings_data.append(booking_dict)
         
