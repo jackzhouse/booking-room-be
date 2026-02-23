@@ -197,18 +197,28 @@ def format_time_range(start: datetime, end: datetime) -> str:
     """Format time range with timezone conversion."""
     from app.core.config import settings
     
+    # Debug logging
+    print(f"[DEBUG format_time_range] Input start: {start} (tzinfo: {start.tzinfo})")
+    print(f"[DEBUG format_time_range] Input end: {end} (tzinfo: {end.tzinfo})")
+    
     # Ensure datetimes are in Asia/Jakarta timezone
     if start.tzinfo is None:
         start = start.replace(tzinfo=settings.timezone)
+        print(f"[DEBUG format_time_range] Start was naive, set tzinfo: {start}")
     else:
         start = start.astimezone(settings.timezone)
+        print(f"[DEBUG format_time_range] Start converted to Asia/Jakarta: {start}")
     
     if end.tzinfo is None:
         end = end.replace(tzinfo=settings.timezone)
+        print(f"[DEBUG format_time_range] End was naive, set tzinfo: {end}")
     else:
         end = end.astimezone(settings.timezone)
+        print(f"[DEBUG format_time_range] End converted to Asia/Jakarta: {end}")
     
-    return f"{start.strftime('%H:%M')} – {end.strftime('%H:%M')} WIB"
+    result = f"{start.strftime('%H:%M')} – {end.strftime('%H:%M')} WIB"
+    print(f"[DEBUG format_time_range] Result: {result}")
+    return result
 
 
 async def notify_new_booking(booking: Booking):
