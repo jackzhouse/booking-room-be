@@ -20,11 +20,11 @@ async def handle_message_with_new_member(update: Update, context: ContextTypes.D
     message = update.message
     
     # Check if this is a new chat member event (someone joined group)
-    if not message.new_chat_member:
+    if not message.new_chat_members:
         return
     
-    # Get new member information
-    new_member = message.new_chat_member
+    # Get first new member from the list
+    new_member = message.new_chat_members[0]
     chat = message.chat
     
     # Check if new member is bot itself
