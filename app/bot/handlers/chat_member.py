@@ -120,6 +120,6 @@ def get_chat_member_handler():
     """
     return MessageHandler(
         callback=handle_message_with_new_member,
-        filters=filters.ChatType.GROUPS | filters.ChatType.SUPERGROUPS,
+        filters=filters.ChatType.GROUPS | filters.ChatType.SUPERGROUP,
         block=False  # Don't block other handlers from running
     )
