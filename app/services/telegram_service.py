@@ -172,8 +172,15 @@ async def get_telegram_chat_info(chat_id: int) -> Dict[str, any]:
 def format_date_indonesian(dt: datetime) -> str:
     """
     Format datetime to Indonesian date format.
-    Example: Senin, 24 Feb 2025 | 09:00 – 11:00 WIB
+    Example: Senin, 24 Feb2025 | 09:00 – 11:00 WIB
     """
+    # Ensure datetime is in Asia/Jakarta timezone
+    from app.core.config import settings
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=settings.timezone)
+    else:
+        dt = dt.astimezone(settings.timezone)
+    
     days = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"]
     months = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", 
               "Jul", "Agu", "Sep", "Okt", "Nov", "Des"]
@@ -182,13 +189,25 @@ def format_date_indonesian(dt: datetime) -> str:
     day = dt.day
     month = months[dt.month - 1]
     year = dt.year
-    time_start = dt.strftime("%H:%M")
     
     return f"{day_name}, {day} {month} {year}"
 
 
 def format_time_range(start: datetime, end: datetime) -> str:
-    """Format time range."""
+    """Format time range with timezone conversion."""
+    from app.core.config import settings
+    
+    # Ensure datetimes are in Asia/Jakarta timezone
+    if start.tzinfo is None:
+        start = start.replace(tzinfo=settings.timezone)
+    else:
+        start = start.astimezone(settings.timezone)
+    
+    if end.tzinfo is None:
+        end = end.replace(tzinfo=settings.timezone)
+    else:
+        end = end.astimezone(settings.timezone)
+    
     return f"{start.strftime('%H:%M')} – {end.strftime('%H:%M')} WIB"
 
 

@@ -19,15 +19,39 @@ from app.services.booking_service import (
 )
 from app.api.deps import get_current_active_user
 from app.models.user import User
+from app.core.config import settings
 
 router = APIRouter(prefix="/bookings", tags=["bookings"])
 
 
+def ensure_timezone(dt: datetime) -> datetime:
+    """
+    Ensure datetime is in Asia/Jakarta timezone for API responses.
+    
+    If datetime is naive (no timezone), assume it's already in app timezone.
+    If datetime has timezone, convert to app timezone.
+    
+    Args:
+        dt: Input datetime
+        
+    Returns:
+        Datetime in Asia/Jakarta timezone
+    """
+    app_timezone = settings.timezone
+    
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=app_timezone)
+    else:
+        return dt.astimezone(app_timezone)
+
+
 def convert_booking_to_response(booking: Booking) -> BookingResponse:
     """
-    Convert a Booking model to BookingResponse by converting ObjectId fields to strings.
+    Convert a Booking model to BookingResponse by converting ObjectId fields to strings
+    and ensuring all datetime fields are in Asia/Jakarta timezone.
     """
     booking_dict = booking.dict(by_alias=True)
+    
     # Convert ObjectId fields to strings
     if "_id" in booking_dict and booking_dict["_id"] is not None:
         booking_dict["_id"] = str(booking_dict["_id"])
@@ -37,6 +61,13 @@ def convert_booking_to_response(booking: Booking) -> BookingResponse:
         booking_dict["room_id"] = str(booking_dict["room_id"])
     if "cancelled_by" in booking_dict and booking_dict["cancelled_by"] is not None:
         booking_dict["cancelled_by"] = str(booking_dict["cancelled_by"])
+    
+    # Convert all datetime fields to Asia/Jakarta timezone
+    datetime_fields = ["start_time", "end_time", "created_at", "updated_at", "cancelled_at"]
+    for field in datetime_fields:
+        if field in booking_dict and booking_dict[field] is not None:
+            booking_dict[field] = ensure_timezone(booking_dict[field])
+    
     return BookingResponse(**booking_dict)
 
 
