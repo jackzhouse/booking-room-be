@@ -1,6 +1,6 @@
 import logging
 from telegram import Update
-from telegram.ext import ContextTypes, ChatMemberHandler
+from telegram.ext import ContextTypes, ChatMemberHandler, MyChatMemberHandler
 
 from app.models.telegram_group import TelegramGroup
 from app.core.config import settings
@@ -137,10 +137,11 @@ async def handle_chat_member_update(update: Update, context: ContextTypes.DEFAUL
 
 def get_chat_member_handler():
     """
-    Create and return a ChatMemberHandler for bot invite detection.
-    Filters to only handle the bot's own membership changes.
+    Create and return a MyChatMemberHandler for bot invite detection.
+    MyChatMemberHandler specifically handles the bot's own membership changes.
     """
-    return ChatMemberHandler(
+    return MyChatMemberHandler(
         handle_chat_member_update,
-        ChatMemberHandler.CHAT_MEMBER
+        MyChatMemberHandler.MY_CHAT_MEMBER,
+        block=False  # Don't block other handlers from running
     )
