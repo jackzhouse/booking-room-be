@@ -453,7 +453,7 @@ async def cancel_booking(
     is_admin: bool = False
 ) -> Booking:
     """
-    Cancel a booking.
+    Cancel a booking (keeps the record in database).
     
     Raises:
         ValueError: If booking not found or no permission
@@ -501,6 +501,45 @@ async def cancel_booking(
     await notify_booking_cancelled(booking)
     
     return booking
+
+
+async def delete_booking(
+    booking_id: str,
+    user_id: ObjectId,
+    is_admin: bool = False
+) -> dict:
+    """
+    Permanently delete a booking from database.
+    
+    Raises:
+        ValueError: If booking not found or no permission
+    """
+    # Convert booking_id string to ObjectId
+    try:
+        booking_obj_id = ObjectId(booking_id)
+    except Exception:
+        raise ValueError("Invalid booking ID format")
+    
+    # Get existing booking
+    booking = await Booking.get(booking_obj_id)
+    if not booking:
+        raise ValueError("Booking tidak ditemukan")
+    
+    # Check ownership or admin
+    if booking.user_id != user_id and not is_admin:
+        raise ValueError("Anda tidak memiliki akses untuk menghapus booking ini")
+    
+    # Delete booking history records first
+    await BookingHistory.delete_many(BookingHistory.booking_id == booking_obj_id)
+    
+    # Delete booking
+    await booking.delete()
+    
+    return {
+        "message": "Booking berhasil dihapus secara permanen",
+        "booking_id": str(booking_obj_id),
+        "booking_number": booking.booking_number
+    }
 
 
 async def create_history(

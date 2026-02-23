@@ -14,6 +14,7 @@ from app.services.booking_service import (
     publish_booking,
     update_booking,
     cancel_booking,
+    delete_booking,
     get_user_bookings
 )
 from app.api.deps import get_current_active_user
@@ -254,15 +255,15 @@ async def update_existing_booking(
         )
 
 
-@router.delete("/{booking_id}", response_model=BookingResponse)
+@router.post("/{booking_id}/cancel", response_model=BookingResponse)
 async def cancel_existing_booking(
     booking_id: str,
     current_user: User = Depends(get_current_active_user)
 ):
     """
-    Cancel a booking.
+    Cancel a booking (keeps record in database).
     
-    Only the booking owner or admin can cancel.
+    Only booking owner or admin can cancel.
     """
     try:
         booking = await cancel_booking(
@@ -272,6 +273,32 @@ async def cancel_existing_booking(
         )
         
         return convert_booking_to_response(booking)
+        
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+
+@router.delete("/{booking_id}")
+async def delete_existing_booking(
+    booking_id: str,
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Permanently delete a booking from database.
+    
+    Only booking owner or admin can delete.
+    """
+    try:
+        result = await delete_booking(
+            booking_id=booking_id,
+            user_id=current_user.id,
+            is_admin=current_user.is_admin
+        )
+        
+        return result
         
     except ValueError as e:
         raise HTTPException(
