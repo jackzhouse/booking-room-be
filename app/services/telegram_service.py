@@ -203,19 +203,17 @@ async def notify_new_booking(booking: Booking):
     # Format username with @ tag if available
     username_display = booking.user_snapshot.username if booking.user_snapshot.username else booking.user_snapshot.full_name
     
-    # Format user info
-    user_info = f"{booking.user_snapshot.full_name}"
-    if booking.user_snapshot.division:
-        user_info += f" ({booking.user_snapshot.division})"
-    user_info += f" — @{username_display}"
+    # Get division - try booking.division first, then user_snapshot.division
+    division = booking.division if booking.division else booking.user_snapshot.division
     
     message = (
         f"📍 INFO BOOKING: {booking.room_snapshot.name.upper()}\n\n"
         f"Informasi reservasi untuk hari {format_date_indonesian(booking.start_time)}:\n\n"
-        f"◽️ Keperluan: {booking.title}\n"
-        f"◽️ Deskripsi: {booking.description if booking.description else '-'}\n"
         f"◽️ Jam: {format_time_range(booking.start_time, booking.end_time)}\n"
-        f"◽️ PIC: {user_info}\n\n"
+        f"◽️ Divisi: {division if division else '-'}\n"
+        f"◽️ Keperluan: {booking.title}\n"
+        f"◽️ Deskripsi: {booking.description if booking.description else '-'}\n\n"
+        f"◽️ PIC: {booking.user_snapshot.full_name} — @{username_display}\n\n"
         f"Rekan-rekan yang membutuhkan ruangan pada jam tersebut diharapkan dapat berkoordinasi langsung dengan @{username_display}. Terima kasih."
     )
     
@@ -233,20 +231,18 @@ async def notify_booking_updated(booking: Booking, old_data: dict):
     # Format username with @ tag if available
     username_display = booking.user_snapshot.username if booking.user_snapshot.username else booking.user_snapshot.full_name
     
-    # Format user info
-    user_info = f"{booking.user_snapshot.full_name}"
-    if booking.user_snapshot.division:
-        user_info += f" ({booking.user_snapshot.division})"
-    user_info += f" — @{username_display}"
+    # Get division - try booking.division first, then user_snapshot.division
+    division = booking.division if booking.division else booking.user_snapshot.division
     
     message = (
         f"📍 UPDATE BOOKING: {booking.room_snapshot.name.upper()}\n"
         f"#{booking.booking_number}\n\n"
         f"Informasi reservasi untuk hari {format_date_indonesian(booking.start_time)}:\n\n"
-        f"◽️ Keperluan: {booking.title}\n"
-        f"◽️ Deskripsi: {booking.description if booking.description else '-'}\n"
         f"◽️ Jam: {format_time_range(booking.start_time, booking.end_time)}\n"
-        f"◽️ PIC: {user_info}\n\n"
+        f"◽️ Divisi: {division if division else '-'}\n"
+        f"◽️ Keperluan: {booking.title}\n"
+        f"◽️ Deskripsi: {booking.description if booking.description else '-'}\n\n"
+        f"◽️ PIC: {booking.user_snapshot.full_name} — @{username_display}\n\n"
         f"Mohon perhatikan perubahan jadwal. Terima kasih."
     )
     
@@ -264,13 +260,17 @@ async def notify_booking_cancelled(booking: Booking):
     # Format username with @ tag if available
     username_display = booking.user_snapshot.username if booking.user_snapshot.username else booking.user_snapshot.full_name
     
+    # Get division - try booking.division first, then user_snapshot.division
+    division = booking.division if booking.division else booking.user_snapshot.division
+    
     message = (
         f"📍 CANCEL BOOKING: {booking.room_snapshot.name.upper()}\n"
         f"#{booking.booking_number}\n\n"
         f"Reservasi telah dibatalkan:\n\n"
+        f"◽️ Jam: {format_time_range(booking.start_time, booking.end_time)}\n"
+        f"◽️ Divisi: {division if division else '-'}\n"
         f"◽️ Keperluan: {booking.title}\n"
-        f"◽️ Deskripsi: {booking.description if booking.description else '-'}\n"
-        f"◽️ Waktu: {format_time_range(booking.start_time, booking.end_time)}\n"
+        f"◽️ Deskripsi: {booking.description if booking.description else '-'}\n\n"
         f"◽️ PIC: @{username_display}\n\n"
         f"Ruangan kini tersedia pada jam tersebut. Terima kasih."
     )
@@ -305,7 +305,7 @@ async def test_notification(group_id: int) -> bool:
 
 async def notify_consumption_group(booking: Booking):
     """
-    Send notification to consumption group (simple format).
+    Send notification to consumption group.
     
     Args:
         booking: Booking object with consumption details
@@ -316,16 +316,12 @@ async def notify_consumption_group(booking: Booking):
     # Format username with @ tag if available
     username_display = booking.user_snapshot.username if booking.user_snapshot.username else booking.user_snapshot.full_name
     
-    # Format user info
-    user_info = f"{booking.user_snapshot.full_name}"
-    if booking.user_snapshot.division:
-        user_info += f" — ({booking.user_snapshot.division})"
-    
     message = (
         f"🍽️ Permintaan Konsumsi Meeting\n\n"
         f"📍 Ruang: {booking.room_snapshot.name}\n"
-        f"📅 Waktu: {format_date_indonesian(booking.start_time)} | {format_time_range(booking.start_time, booking.end_time)}\n"
-        f"👤 PIC: {user_info}\n\n"
+        f"📅 Hari: {format_date_indonesian(booking.start_time)}\n"
+        f"⏰ Jam: {format_time_range(booking.start_time, booking.end_time)}\n\n"
+        f"👤 PIC: {booking.user_snapshot.full_name} @{username_display}\n\n"
         f"📝 Detail Konsumsi:\n{booking.consumption_note if booking.consumption_note else '-'}\n\n"
         f"Mohon bantu menyiapkan konsumsi sesuai permintaan. Terima kasih."
     )
@@ -346,19 +342,17 @@ async def notify_verification_group_booking(booking: Booking):
     # Format username with @ tag if available
     username_display = booking.user_snapshot.username if booking.user_snapshot.username else booking.user_snapshot.full_name
     
-    # Format user info
-    user_info = f"{booking.user_snapshot.full_name}"
-    if booking.user_snapshot.division:
-        user_info += f" — ({booking.user_snapshot.division})"
-    user_info += f" — @{username_display}"
+    # Get division - try booking.division first, then user_snapshot.division
+    division = booking.division if booking.division else booking.user_snapshot.division
     
     message = (
-        f"📍  Informasi Booking Ruangan, {booking.room_snapshot.name}\n\n"
-        f"📅 {format_date_indonesian(booking.start_time)} | {format_time_range(booking.start_time, booking.end_time)}\n\n"
-        f"📋 Detail Booking:\n"
-        f"• Keperluan: {booking.title}\n"
-        f"• Deskripsi: {booking.description if booking.description else '-'}\n"
-        f"• PIC: {user_info}\n\n"
+        f"📍 INFO BOOKING: {booking.room_snapshot.name.upper()}\n\n"
+        f"Informasi reservasi untuk hari {format_date_indonesian(booking.start_time)}:\n\n"
+        f"◽️ Jam: {format_time_range(booking.start_time, booking.end_time)}\n"
+        f"◽️ Divisi: {division if division else '-'}\n"
+        f"◽️ Keperluan: {booking.title}\n"
+        f"◽️ Deskripsi: {booking.description if booking.description else '-'}\n\n"
+        f"◽️ PIC: {booking.user_snapshot.full_name} — @{username_display}\n\n"
         f"Rekan-rekan yang membutuhkan ruangan pada jam tersebut diharapkan dapat berkoordinasi langsung dengan @{username_display}. Terima kasih."
     )
     
