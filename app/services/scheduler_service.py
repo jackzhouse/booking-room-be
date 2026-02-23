@@ -28,6 +28,8 @@ async def check_and_notify_ended_bookings():
     
     now = datetime.now(settings.timezone)
     print(f"[Scheduler] Current time (Asia/Jakarta): {now}")
+    print(f"[Scheduler] settings.timezone: {settings.timezone}")
+    print(f"[Scheduler] UTC now: {datetime.utcnow()}")
     
     # Find bookings that need cleanup notification
     query = {
