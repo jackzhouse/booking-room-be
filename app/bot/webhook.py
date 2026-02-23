@@ -74,11 +74,15 @@ async def handle_webhook_update(data: dict, context: ContextTypes.DEFAULT_TYPE):
     
     # Log the incoming update type for debugging
     if "message" in data:
-        logger.info(f"📨 Received MESSAGE update")
+        message = data.get("message", {})
+        if "new_chat_member" in message:
+            logger.info(f"📨 Received MESSAGE with NEW_CHAT_MEMBER (BOT INVITE DETECTED!)")
+        else:
+            logger.info(f"📨 Received MESSAGE update")
     elif "callback_query" in data:
         logger.info(f"📨 Received CALLBACK_QUERY update")
     elif "my_chat_member" in data:
-        logger.info(f"🎉 Received MY_CHAT_MEMBER update (THIS IS WHAT WE WANT!)")
+        logger.info(f"📨 Received MY_CHAT_MEMBER update")
     elif "chat_member" in data:
         logger.info(f"📨 Received CHAT_MEMBER update (other user)")
     elif "edited_message" in data:
@@ -93,7 +97,9 @@ async def handle_webhook_update(data: dict, context: ContextTypes.DEFAULT_TYPE):
     # Log if update was successfully parsed
     if update:
         logger.info(f"✅ Update parsed successfully: {update.update_id}")
-        if update.my_chat_member:
+        if update.message and update.message.new_chat_member:
+            logger.info(f"✅ MESSAGE with NEW_CHAT_MEMBER detected in parsed Update object!")
+        elif update.my_chat_member:
             logger.info(f"✅ MY_CHAT_MEMBER update detected in parsed Update object!")
         elif update.chat_member:
             logger.info(f"✅ CHAT_MEMBER update detected in parsed Update object!")
