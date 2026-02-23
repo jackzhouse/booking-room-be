@@ -5,6 +5,33 @@ from bson import ObjectId
 from beanie import PydanticObjectId
 
 from app.models.booking import Booking, UserSnapshot, RoomSnapshot
+from app.core.config import settings
+
+
+def ensure_timezone(dt: datetime) -> datetime:
+    """
+    Ensure datetime is in the application's timezone (Asia/Jakarta).
+    
+    If datetime is naive (no timezone), assume it's already in app timezone.
+    If datetime has timezone, convert to app timezone.
+    
+    Args:
+        dt: Input datetime
+        
+    Returns:
+        Datetime in app timezone
+    """
+    app_timezone = settings.timezone
+    
+    if dt.tzinfo is None:
+        # Naive datetime - assume it's already in app timezone
+        return dt.replace(tzinfo=app_timezone)
+    else:
+        # Timezone-aware datetime - convert to app timezone
+        return dt.astimezone(app_timezone)
+
+
+from app.models.booking import Booking, UserSnapshot, RoomSnapshot
 from app.models.booking_history import BookingHistory, HistoryData
 from app.models.room import Room
 from app.models.setting import Setting
@@ -121,6 +148,10 @@ async def create_booking(
         ValueError: If validation fails
         Exception: If room not found or other errors occur
     """
+    # Ensure datetimes are in correct timezone
+    start_time = ensure_timezone(start_time)
+    end_time = ensure_timezone(end_time)
+    
     # Get room
     room = await Room.get(room_id)
     if not room:
@@ -391,6 +422,10 @@ async def update_booking(
     if start_time or end_time:
         new_start = start_time if start_time else booking.start_time
         new_end = end_time if end_time else booking.end_time
+        
+        # Ensure datetimes are in correct timezone
+        new_start = ensure_timezone(new_start)
+        new_end = ensure_timezone(new_end)
         
         # Validate operating hours (non-admin only)
         is_valid, error_msg = await validate_operating_hours(new_start, new_end, user.is_admin if user else is_admin)
