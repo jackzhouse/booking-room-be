@@ -22,7 +22,12 @@ logger = logging.getLogger(__name__)
 # Initialize bot application
 application = Application.builder().token(settings.BOT_TOKEN).build()
 
-# Register handlers
+# Register chat member handler FIRST (before command handlers)
+# This ensures chat_member updates are processed correctly
+chat_member_handler = get_chat_member_handler()
+application.add_handler(chat_member_handler)
+
+# Register command handlers
 start_handler = CommandHandler("start", start)
 help_handler = CommandHandler("help", help_command)
 mybooking_handler = CommandHandler("mybooking", mybooking)
@@ -36,10 +41,6 @@ application.add_handler(mybooking_handler)
 application.add_handler(schedule_handler)
 application.add_handler(cancel_handler)
 application.add_handler(authorize_handler)
-
-# Add chat member handler for auto-registering groups when bot is invited
-chat_member_handler = get_chat_member_handler()
-application.add_handler(chat_member_handler)
 
 # Initialize application once (not for every update)
 application_started = False
