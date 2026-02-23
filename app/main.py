@@ -4,13 +4,18 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from app.core.config import settings
 from app.core.database import connect_to_mongo, close_mongo_connection, init_beanie_models
 from app.api.v1 import auth, bookings, rooms, admin, telegram_groups
 from app.bot.webhook import set_webhook, delete_webhook, handle_webhook_update
+from app.services.scheduler_service import check_and_notify_ended_bookings
 from telegram import Update
 from fastapi import Request
+
+# Create scheduler instance
+scheduler = AsyncIOScheduler()
 
 # Configure logging
 logging.basicConfig(
@@ -53,6 +58,18 @@ async def lifespan(app: FastAPI):
     # Initialize default settings if not exist
     await initialize_default_settings()
     
+    # Start scheduler for automatic cleanup notifications
+    scheduler.add_job(
+        check_and_notify_ended_bookings,
+        'interval',
+        minutes=5,
+        id='cleanup_notifications',
+        name='Send cleanup notifications for ended bookings',
+        replace_existing=True
+    )
+    scheduler.start()
+    print("✅ Scheduler started: Will check for ended bookings every 5 minutes")
+    
     # Set Telegram webhook (for Vercel deployment)
     try:
         await set_webhook()
@@ -64,6 +81,9 @@ async def lifespan(app: FastAPI):
     yield
     
     # Shutdown
+    scheduler.shutdown()
+    print("✅ Scheduler stopped")
+    
     await close_mongo_connection()
     
     # Note: Webhook is kept configured in Telegram for always-on bot functionality
@@ -150,6 +170,16 @@ async def initialize_default_settings():
             "key": "telegram_group_id",
             "value": "",
             "description": "ID grup Telegram tujuan notifikasi"
+        },
+        {
+            "key": "default_consumption_group_id",
+            "value": "",
+            "description": "ID grup Telegram default untuk notifikasi konsumsi"
+        },
+        {
+            "key": "default_verification_group_id",
+            "value": "",
+            "description": "ID grup Telegram default untuk notifikasi verifikasi dan perapian"
         }
     ]
     

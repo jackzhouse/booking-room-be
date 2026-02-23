@@ -1,6 +1,7 @@
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
+from pydantic import BaseModel
 
 from app.models.booking import Booking
 from app.models.user import User
@@ -371,6 +372,83 @@ async def test_telegram_notification(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to send test notification. Check bot configuration."
         )
+
+
+@router.get("/settings/group-ids")
+async def get_group_ids(
+    current_user: User = Depends(get_current_admin_user)
+):
+    """
+    Get default group IDs for consumption and verification (Admin only).
+    
+    Returns:
+        - default_consumption_group_id: Default Telegram group ID for consumption notifications
+        - default_verification_group_id: Default Telegram group ID for verification and cleanup notifications
+    """
+    consumption_setting = await Setting.find_one(Setting.key == "default_consumption_group_id")
+    verification_setting = await Setting.find_one(Setting.key == "default_verification_group_id")
+    
+    return {
+        "default_consumption_group_id": int(consumption_setting.value) if consumption_setting and consumption_setting.value else None,
+        "default_verification_group_id": int(verification_setting.value) if verification_setting and verification_setting.value else None
+    }
+
+
+class GroupIdsUpdate(BaseModel):
+    """Schema for updating default group IDs"""
+    default_consumption_group_id: Optional[int] = None
+    default_verification_group_id: Optional[int] = None
+
+
+@router.put("/settings/group-ids")
+async def update_group_ids(
+    data: GroupIdsUpdate,
+    current_user: User = Depends(get_current_admin_user)
+):
+    """
+    Update default group IDs for consumption and verification (Admin only).
+    
+    Args:
+        - default_consumption_group_id: New default Telegram group ID for consumption notifications
+        - default_verification_group_id: New default Telegram group ID for verification and cleanup notifications
+    """
+    # Update consumption group ID if provided
+    if data.default_consumption_group_id is not None:
+        consumption_setting = await Setting.find_one(Setting.key == "default_consumption_group_id")
+        if consumption_setting:
+            consumption_setting.value = str(data.default_consumption_group_id)
+            consumption_setting.updated_by = current_user.id
+            await consumption_setting.save()
+        else:
+            new_setting = Setting(
+                key="default_consumption_group_id",
+                value=str(data.default_consumption_group_id),
+                description="ID grup Telegram default untuk notifikasi konsumsi",
+                updated_by=current_user.id
+            )
+            await new_setting.insert()
+    
+    # Update verification group ID if provided
+    if data.default_verification_group_id is not None:
+        verification_setting = await Setting.find_one(Setting.key == "default_verification_group_id")
+        if verification_setting:
+            verification_setting.value = str(data.default_verification_group_id)
+            verification_setting.updated_by = current_user.id
+            await verification_setting.save()
+        else:
+            new_setting = Setting(
+                key="default_verification_group_id",
+                value=str(data.default_verification_group_id),
+                description="ID grup Telegram default untuk notifikasi verifikasi dan perapian",
+                updated_by=current_user.id
+            )
+            await new_setting.insert()
+    
+    return {
+        "message": "Group IDs updated successfully",
+        "default_consumption_group_id": data.default_consumption_group_id,
+        "default_verification_group_id": data.default_verification_group_id
+    }
 
 
 @router.get("/dashboard/stats", response_model=DashboardStats)

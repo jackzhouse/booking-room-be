@@ -25,6 +25,11 @@ class BookingCreate(BaseModel):
     description: Optional[str] = None
     start_time: datetime
     end_time: datetime
+    # Consumption fields
+    has_consumption: bool = False
+    consumption_note: Optional[str] = None
+    consumption_group_id: Optional[int] = None  # Optional: override default consumption group
+    verification_group_id: Optional[int] = None  # Optional: override default verification group
 
 
 class BookingUpdate(BaseModel):
@@ -55,6 +60,11 @@ class BookingResponse(BaseModel):
     published: bool
     cancelled_at: Optional[datetime] = None
     cancelled_by: Optional[str] = None
+    has_consumption: bool = False
+    consumption_note: Optional[str] = None
+    consumption_group_id: Optional[int] = None
+    verification_group_id: Optional[int] = None
+    hrd_notified: bool = False
     created_at: datetime
     updated_at: datetime
     

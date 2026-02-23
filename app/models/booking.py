@@ -36,6 +36,12 @@ class Booking(Document):
     published: bool = Field(default=False)  # Whether booking is published to Telegram
     cancelled_at: Optional[datetime] = None
     cancelled_by: Optional[ObjectId] = None
+    # Consumption fields
+    has_consumption: bool = Field(default=False)  # Whether booking has consumption
+    consumption_note: Optional[str] = None  # Consumption details note
+    consumption_group_id: Optional[int] = None  # Telegram group ID for consumption notifications
+    verification_group_id: Optional[int] = None  # Telegram group ID for verification/cleanup notifications
+    hrd_notified: bool = Field(default=False)  # Whether HRD has been notified for cleanup
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
     

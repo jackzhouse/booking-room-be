@@ -19,7 +19,10 @@ from app.services.telegram_service import (
     get_telegram_group,
     notify_new_booking,
     notify_booking_updated,
-    notify_booking_cancelled
+    notify_booking_cancelled,
+    notify_consumption_group,
+    notify_verification_group_booking,
+    notify_verification_group_cleanup
 )
 from app.core.config import settings
 
@@ -105,6 +108,10 @@ async def create_booking(
     end_time: datetime,
     division: Optional[str] = None,
     description: Optional[str] = None,
+    has_consumption: bool = False,
+    consumption_note: Optional[str] = None,
+    consumption_group_id: Optional[int] = None,
+    verification_group_id: Optional[int] = None,
     is_admin: bool = False
 ) -> Booking:
     """
@@ -157,6 +164,37 @@ async def create_booking(
         error_msg = await format_conflict_message(conflicting_booking)
         raise ValueError(error_msg)
     
+    # Handle consumption and verification group IDs
+    # Use defaults from settings if not provided
+    final_consumption_group_id = consumption_group_id
+    final_verification_group_id = verification_group_id
+    
+    # Get default consumption group from settings if not provided and has consumption
+    if has_consumption and not final_consumption_group_id:
+        setting = await Setting.find_one(Setting.key == "default_consumption_group_id")
+        if setting:
+            try:
+                final_consumption_group_id = int(setting.value)
+                # Validate the group exists
+                consumption_group = await get_telegram_group(final_consumption_group_id)
+                if not consumption_group:
+                    final_consumption_group_id = None
+            except (ValueError, TypeError):
+                final_consumption_group_id = None
+    
+    # Get default verification group from settings if not provided
+    if not final_verification_group_id:
+        setting = await Setting.find_one(Setting.key == "default_verification_group_id")
+        if setting:
+            try:
+                final_verification_group_id = int(setting.value)
+                # Validate the group exists
+                verification_group = await get_telegram_group(final_verification_group_id)
+                if not verification_group:
+                    final_verification_group_id = None
+            except (ValueError, TypeError):
+                final_verification_group_id = None
+    
     # Generate booking number
     booking_number = await generate_booking_number()
     
@@ -179,7 +217,11 @@ async def create_booking(
         start_time=start_time,
         end_time=end_time,
         status="active",
-        published=False  # Start as draft
+        published=False,  # Start as draft
+        has_consumption=has_consumption,
+        consumption_note=consumption_note,
+        consumption_group_id=final_consumption_group_id,
+        verification_group_id=final_verification_group_id
     )
     
     await booking.insert()
@@ -259,8 +301,18 @@ async def publish_booking(
         )
     )
     
-    # Send notification
+    # Send multi-group notifications
+    
+    # 1. Always send to selected group (existing behavior)
     await notify_new_booking(booking)
+    
+    # 2. Always send to verification group (if configured)
+    if booking.verification_group_id:
+        await notify_verification_group_booking(booking)
+    
+    # 3. Send to consumption group if has consumption (if configured)
+    if booking.has_consumption and booking.consumption_group_id:
+        await notify_consumption_group(booking)
     
     return booking
 

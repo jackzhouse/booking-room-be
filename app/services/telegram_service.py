@@ -301,3 +301,91 @@ async def test_notification(group_id: int) -> bool:
     )
     
     return await send_telegram_message(group_id, message)
+
+
+async def notify_consumption_group(booking: Booking):
+    """
+    Send notification to consumption group (simple format).
+    
+    Args:
+        booking: Booking object with consumption details
+    """
+    if not booking.consumption_group_id:
+        return
+    
+    # Format username with @ tag if available
+    username_display = booking.user_snapshot.username if booking.user_snapshot.username else booking.user_snapshot.full_name
+    
+    # Format user info
+    user_info = f"{booking.user_snapshot.full_name}"
+    if booking.user_snapshot.division:
+        user_info += f" — ({booking.user_snapshot.division})"
+    
+    message = (
+        f"🍽️ Permintaan Konsumsi Meeting\n\n"
+        f"📍 Ruang: {booking.room_snapshot.name}\n"
+        f"📅 Waktu: {format_date_indonesian(booking.start_time)} | {format_time_range(booking.start_time, booking.end_time)}\n"
+        f"👤 PIC: {user_info}\n\n"
+        f"📝 Detail Konsumsi:\n{booking.consumption_note if booking.consumption_note else '-'}\n\n"
+        f"Mohon bantu menyiapkan konsumsi sesuai permintaan. Terima kasih."
+    )
+    
+    await send_telegram_message(booking.consumption_group_id, message)
+
+
+async def notify_verification_group_booking(booking: Booking):
+    """
+    Send booking notification to verification group (full format).
+    
+    Args:
+        booking: Booking object
+    """
+    if not booking.verification_group_id:
+        return
+    
+    # Format username with @ tag if available
+    username_display = booking.user_snapshot.username if booking.user_snapshot.username else booking.user_snapshot.full_name
+    
+    # Format user info
+    user_info = f"{booking.user_snapshot.full_name}"
+    if booking.user_snapshot.division:
+        user_info += f" — ({booking.user_snapshot.division})"
+    user_info += f" — @{username_display}"
+    
+    message = (
+        f"📍  Informasi Booking Ruangan, {booking.room_snapshot.name}\n\n"
+        f"📅 {format_date_indonesian(booking.start_time)} | {format_time_range(booking.start_time, booking.end_time)}\n\n"
+        f"📋 Detail Booking:\n"
+        f"• Keperluan: {booking.title}\n"
+        f"• Deskripsi: {booking.description if booking.description else '-'}\n"
+        f"• PIC: {user_info}\n\n"
+        f"Rekan-rekan yang membutuhkan ruangan pada jam tersebut diharapkan dapat berkoordinasi langsung dengan @{username_display}. Terima kasih."
+    )
+    
+    await send_telegram_message(booking.verification_group_id, message)
+
+
+async def notify_verification_group_cleanup(booking: Booking):
+    """
+    Send cleanup notification to verification group after meeting ends.
+    
+    Args:
+        booking: Booking object
+    """
+    if not booking.verification_group_id:
+        return
+    
+    # Format user info
+    user_info = f"{booking.user_snapshot.full_name}"
+    if booking.user_snapshot.division:
+        user_info += f" — ({booking.user_snapshot.division})"
+    
+    message = (
+        f"✅ Meeting Selesai\n\n"
+        f"📍 Ruang: {booking.room_snapshot.name}\n"
+        f"📅 Meeting Berakhir: {format_date_indonesian(booking.end_time)} | {booking.end_time.strftime('%H:%M')} WIB\n"
+        f"👤 PIC: {user_info}\n\n"
+        f"Mohon bantu dilakukan perapian/kebersihan ruangan setelah penggunaan. Terima kasih."
+    )
+    
+    await send_telegram_message(booking.verification_group_id, message)
