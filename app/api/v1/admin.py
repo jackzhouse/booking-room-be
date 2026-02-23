@@ -20,6 +20,8 @@ from app.schemas.user_management import (
 )
 from app.services.booking_service import cancel_booking
 from app.services.dashboard_service import get_dashboard_statistics
+from app.services.scheduler_service import get_pending_cleanup_count, get_recent_ended_bookings
+from app.core.config import settings
 from app.api.deps import get_current_admin_user
 from app.schemas.booking import BookingResponse
 from app.schemas.room import RoomResponse
@@ -470,3 +472,52 @@ async def get_dashboard_stats(
     """
     stats = await get_dashboard_statistics()
     return DashboardStats(**stats)
+
+
+@router.get("/scheduler/status")
+async def get_scheduler_status(
+    limit: int = Query(10, ge=1, le=50, description="Maximum number of bookings to show"),
+    current_user: User = Depends(get_current_admin_user)
+):
+    """
+    Get scheduler status and pending cleanup notifications (Admin only).
+    
+    Returns:
+        - pending_count: Number of bookings needing cleanup notification
+        - recent_ended: List of recently ended bookings (pending or notified)
+    """
+    now = datetime.now(settings.timezone)
+    
+    # Get pending cleanup count
+    pending_count = await get_pending_cleanup_count()
+    
+    # Get recent ended bookings (both pending and notified)
+    recent_ended = await get_recent_ended_bookings(limit=limit)
+    
+    # Convert bookings to response format
+    bookings_data = []
+    for booking in recent_ended:
+        booking_dict = booking.dict(by_alias=True)
+        if "_id" in booking_dict and booking_dict["_id"] is not None:
+            booking_dict["_id"] = str(booking_dict["_id"])
+        if "user_id" in booking_dict and booking_dict["user_id"] is not None:
+            booking_dict["user_id"] = str(booking_dict["user_id"])
+        if "room_id" in booking_dict and booking_dict["room_id"] is not None:
+            booking_dict["room_id"] = str(booking_dict["room_id"])
+        if "cancelled_by" in booking_dict and booking_dict["cancelled_by"] is not None:
+            booking_dict["cancelled_by"] = str(booking_dict["cancelled_by"])
+        
+        # Add ended_ago field
+        ended_ago = (now - booking.end_time).total_seconds() / 60
+        booking_dict["ended_minutes_ago"] = ended_ago
+        
+        bookings_data.append(booking_dict)
+    
+    return {
+        "pending_count": pending_count,
+        "recent_ended": bookings_data,
+        "scheduler_info": {
+            "runs_every_minutes": 5,
+            "status": "active"
+        }
+    }
