@@ -9,6 +9,7 @@ from app.bot.handlers.mybooking import mybooking
 from app.bot.handlers.schedule import schedule
 from app.bot.handlers.cancel import cancel
 from app.bot.handlers.authorize import authorize_command
+from app.bot.handlers.chat_member import get_chat_member_handler
 
 # Configure logging
 logging.basicConfig(
@@ -35,6 +36,10 @@ application.add_handler(mybooking_handler)
 application.add_handler(schedule_handler)
 application.add_handler(cancel_handler)
 application.add_handler(authorize_handler)
+
+# Add chat member handler for auto-registering groups when bot is invited
+chat_member_handler = get_chat_member_handler()
+application.add_handler(chat_member_handler)
 
 # Initialize application once (not for every update)
 application_started = False
@@ -87,7 +92,7 @@ async def set_webhook():
         await application.bot.set_webhook(
             url=webhook_url,
             drop_pending_updates=True,
-            allowed_updates=["message", "callback_query"]
+            allowed_updates=["message", "callback_query", "chat_member"]
         )
         logger.info("✅ Telegram webhook set successfully")
         await application.shutdown()

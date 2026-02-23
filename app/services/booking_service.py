@@ -1,5 +1,6 @@
 from datetime import datetime
 from typing import Optional, List
+import re
 from bson import ObjectId
 from beanie import PydanticObjectId
 
@@ -21,6 +22,51 @@ from app.services.telegram_service import (
     notify_booking_cancelled
 )
 from app.core.config import settings
+
+
+def format_text_with_links(text: Optional[str]) -> Optional[str]:
+    """
+    Format text with proper capitalization while preserving URLs in lowercase.
+    
+    Args:
+        text: The text to format
+        
+    Returns:
+        Formatted text with URLs in lowercase
+    """
+    if not text:
+        return text
+    
+    # Pattern to match URLs (http, https, www) - case insensitive
+    url_pattern = r'(?i)(https?://[^\s]+|www\.[^\s]+)'
+    
+    # Find all URLs and their positions
+    urls = []
+    def collect_urls(match):
+        urls.append(match.group(0))
+        return f"__URL_{len(urls)-1}__"
+    
+    # Replace URLs with placeholders
+    text_with_placeholders = re.sub(url_pattern, collect_urls, text)
+    
+    # Split text into words and capitalize each word that's not a placeholder
+    words = text_with_placeholders.split()
+    formatted_words = []
+    for word in words:
+        if word.startswith("__URL_") and word.endswith("__"):
+            # Keep placeholder as-is
+            formatted_words.append(word)
+        else:
+            # Capitalize the word
+            formatted_words.append(word.title())
+    
+    formatted_text = " ".join(formatted_words)
+    
+    # Replace placeholders with original URLs in lowercase
+    for i, url in enumerate(urls):
+        formatted_text = formatted_text.replace(f"__URL_{i}__", url.lower())
+    
+    return formatted_text
 
 
 async def generate_booking_number() -> str:
@@ -96,9 +142,9 @@ async def create_booking(
     if not is_valid:
         raise ValueError(error_msg)
     
-    # Capitalize title and description for professional appearance
+    # Capitalize title and format description (preserving URLs in lowercase)
     title = title.title() if title else title
-    description = description.title() if description else description
+    description = format_text_with_links(description)
     
     # Check for conflicts
     has_conflict, conflicting_booking = await check_booking_conflict(
@@ -291,7 +337,7 @@ async def update_booking(
         update_data["division"] = division
     
     if description is not None:
-        update_data["description"] = description.title() if description else description
+        update_data["description"] = format_text_with_links(description)
     
     if room_id is not None:
         update_data["room_id"] = room_id_obj
