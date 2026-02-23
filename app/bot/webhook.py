@@ -72,12 +72,35 @@ async def handle_webhook_update(data: dict, context: ContextTypes.DEFAULT_TYPE):
     """
     app = await get_application()
     
+    # Log the incoming update type for debugging
+    update_type = data.get("update_type") if isinstance(data, dict) else "unknown"
+    if "message" in data:
+        logger.info(f"📨 Received MESSAGE update")
+    elif "callback_query" in data:
+        logger.info(f"📨 Received CALLBACK_QUERY update")
+    elif "chat_member" in data:
+        logger.info(f"📨 Received CHAT_MEMBER update (THIS IS WHAT WE WANT!)")
+    elif "edited_message" in data:
+        logger.info(f"📨 Received EDITED_MESSAGE update")
+    else:
+        logger.info(f"📨 Received UNKNOWN update type: {list(data.keys())}")
+    
     # Create Update object from JSON data using the application's bot instance
     bot = app.bot
     update = Update.de_json(data, bot)
     
+    # Log if update was successfully parsed
+    if update:
+        logger.info(f"✅ Update parsed successfully: {update.update_id}")
+        if update.chat_member:
+            logger.info(f"✅ Chat member update detected in parsed Update object!")
+    else:
+        logger.error(f"❌ Failed to parse update from data")
+    
     # Process the update
+    logger.info(f"🔄 Processing update through handlers...")
     await app.process_update(update)
+    logger.info(f"✅ Update processing completed")
 
 
 async def set_webhook():
