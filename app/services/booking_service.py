@@ -175,10 +175,6 @@ async def create_booking(
         if setting:
             try:
                 final_consumption_group_id = int(setting.value)
-                # Validate the group exists
-                consumption_group = await get_telegram_group(final_consumption_group_id)
-                if not consumption_group:
-                    final_consumption_group_id = None
             except (ValueError, TypeError):
                 final_consumption_group_id = None
     
@@ -188,10 +184,6 @@ async def create_booking(
         if setting:
             try:
                 final_verification_group_id = int(setting.value)
-                # Validate the group exists
-                verification_group = await get_telegram_group(final_verification_group_id)
-                if not verification_group:
-                    final_verification_group_id = None
             except (ValueError, TypeError):
                 final_verification_group_id = None
     
