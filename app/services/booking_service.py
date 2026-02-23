@@ -531,7 +531,7 @@ async def delete_booking(
         raise ValueError("Anda tidak memiliki akses untuk menghapus booking ini")
     
     # Delete booking history records first
-    await BookingHistory.delete_many(BookingHistory.booking_id == booking_obj_id)
+    await BookingHistory.find(BookingHistory.booking_id == booking_obj_id).delete_many()
     
     # Delete booking
     await booking.delete()
