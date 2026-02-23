@@ -441,8 +441,9 @@ async def update_booking(
         )
     )
     
-    # Send notification
-    await notify_booking_updated(booking, old_data.dict())
+    # Send notification only if booking is published (not draft)
+    if booking.published:
+        await notify_booking_updated(booking, old_data.dict())
     
     return booking
 
