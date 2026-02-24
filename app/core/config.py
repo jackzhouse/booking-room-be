@@ -2,7 +2,8 @@ from pydantic import BaseSettings, validator
 from typing import Optional
 from zoneinfo import ZoneInfo
 import consul
-import os
+
+import yaml
 
 
 class Settings(BaseSettings):
@@ -51,66 +52,10 @@ class Settings(BaseSettings):
 def load_settings_from_consul():
     """Load settings from Consul key-value store"""
     # Get Consul connection details from environment variables
-    consul_host = os.getenv('CONSUL_HOST', 'localhost')
-    consul_port = int(os.getenv('CONSUL_PORT', 8500))
-
-    # Check if Consul is available
-    consul_available = False
-    try:
-        test_client = consul.Consul(host=consul_host, port=consul_port)
-        test_client.status.leader()  # Test connection
-        consul_available = True
-    except:
-        consul_available = False
-
-    settings_dict = {}
-
-    if consul_available:
-        # Create Consul client
-        client = consul.Consul(host=consul_host, port=consul_port)
-
-        # Define the keys to load from Consul
-        consul_keys = [
-            'APP_ENV',
-            'SECRET_KEY',
-            'JWT_ALGORITHM',
-            'JWT_EXPIRE_MINUTES',
-            'FRONTEND_URL',
-            'TIMEZONE',
-            'MONGODB_URL',
-            'MONGODB_DB_NAME',
-            'BOT_TOKEN',
-            'WEBHOOK_BASE_URL',
-            'ADMIN_TELEGRAM_ID'
-        ]
-
-        # Load each key from Consul
-        for key in consul_keys:
-            try:
-                index, data = client.kv.get(key)
-                if data and data.get('Value'):
-                    # Decode bytes to string
-                    value = data['Value'].decode('utf-8')
-                    # Convert to appropriate type
-                    if key in ['JWT_EXPIRE_MINUTES', 'ADMIN_TELEGRAM_ID']:
-                        settings_dict[key] = int(value)
-                    else:
-                        settings_dict[key] = value
-            except Exception as e:
-                print(f"Warning: Could not load {key} from Consul: {e}")
-                # Fall back to environment variable if available
-                env_value = os.getenv(key)
-                if env_value:
-                    if key in ['JWT_EXPIRE_MINUTES', 'ADMIN_TELEGRAM_ID']:
-                        settings_dict[key] = int(env_value)
-                    else:
-                        settings_dict[key] = env_value
-    else:
-        print("Consul not available, using environment variables and defaults")
-        # Default to development when Consul is not available
-        settings_dict['APP_ENV'] = 'development'
-
-    return settings_dict
+    c = consul.Consul(host='consul', port=8500)
+    index, data = c.kv.get('new-config/psp-booking-room-be/setting')
+    config = yaml.load(data['Value'],Loader=yaml.SafeLoader)
+    return config
 
 
 # Load settings from Consul and create Settings instance
