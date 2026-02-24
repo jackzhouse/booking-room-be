@@ -130,4 +130,3 @@ This URL is loaded in `app/core/config.py` and used for CORS validation.
 
 The CORS issue has been completely resolved. The frontend can now successfully communicate with the backend API. The "Invalid Telegram authentication" error is now the expected response for invalid test data, which is the correct security behavior.
 
-**No further changes needed** - the endpoint is working as designed.
