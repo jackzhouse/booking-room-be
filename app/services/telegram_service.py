@@ -393,10 +393,18 @@ async def notify_verification_group_cleanup(booking: Booking):
     if booking.user_snapshot.division:
         user_info += f" — ({booking.user_snapshot.division})"
     
+    # Convert end_time to Asia/Jakarta timezone for time display
+    end_time_jkt = booking.end_time
+    if end_time_jkt.tzinfo is not None:
+        end_time_jkt = end_time_jkt.astimezone(settings.timezone)
+    elif end_time_jkt.tzinfo is None:
+        end_time_jkt = end_time_jkt.replace(tzinfo=timezone.utc)
+        end_time_jkt = end_time_jkt.astimezone(settings.timezone)
+    
     message = (
         f"✅ Meeting Selesai\n\n"
         f"📍 Ruang: {booking.room_snapshot.name}\n"
-        f"📅 Meeting Berakhir: {format_date_indonesian(booking.end_time)} | {booking.end_time.strftime('%H:%M')} WIB\n"
+        f"📅 Meeting Berakhir: {format_date_indonesian(booking.end_time)} | {end_time_jkt.strftime('%H:%M')} WIB\n"
         f"👤 PIC: {user_info}\n\n"
         f"Mohon bantu dilakukan perapian/kebersihan ruangan setelah penggunaan. Terima kasih."
     )
