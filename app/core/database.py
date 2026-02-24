@@ -12,15 +12,24 @@ client: AsyncIOMotorClient = None
 async def connect_to_mongo():
     """Initialize MongoDB connection and Beanie ODM"""
     global client
-    
-    # Create MongoDB client with SSL/TLS configuration for MongoDB Atlas
-    client = AsyncIOMotorClient(
-        settings.MONGODB_URL,
-        tls=True,
-        tlsAllowInvalidCertificates=True,  # For MongoDB Atlas
-        serverSelectionTimeoutMS=5000
-    )
-    
+
+    # Determine if SSL should be used based on the URL
+    use_ssl = "mongodb+srv://" in settings.MONGODB_URL or "ssl=true" in settings.MONGODB_URL
+
+    # Create MongoDB client with conditional SSL configuration
+    client_config = {
+        "serverSelectionTimeoutMS": 5000
+    }
+
+    if use_ssl:
+        # For MongoDB Atlas or SSL-enabled connections
+        client_config.update({
+            "tls": True,
+            "tlsAllowInvalidCertificates": True,  # For MongoDB Atlas
+        })
+
+    client = AsyncIOMotorClient(settings.MONGODB_URL, **client_config)
+
     # Test connection
     try:
         await client.admin.command("ping")

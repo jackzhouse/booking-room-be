@@ -178,4 +178,3 @@ When deploying to production, you have two options:
 **Need Help?**
 - Check the logs in your terminal for error messages
 - Run `./venv/bin/python test_bot.py` to verify bot connectivity
-- Review this document for troubleshooting steps

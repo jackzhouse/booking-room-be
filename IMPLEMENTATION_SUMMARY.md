@@ -1,4 +1,3 @@
-# Implementation Summary - Booking Room Backend
 
 ## Project Completion Status: ✅ 100%
 
