@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List, Dict
 from telegram import Bot, Chat
 from telegram.error import TelegramError
@@ -119,7 +119,7 @@ async def get_telegram_chat_info(chat_id: int) -> Dict[str, any]:
     Get Telegram chat information by chat ID.
     
     This function retrieves chat information from Telegram API including
-    the chat name/title, type, and other metadata.
+    chat name/title, type, and other metadata.
     
     Args:
         chat_id: Telegram chat ID (can be negative for groups)
@@ -171,9 +171,17 @@ async def get_telegram_chat_info(chat_id: int) -> Dict[str, any]:
 
 def format_date_indonesian(dt: datetime) -> str:
     """
-    Format datetime to Indonesian date format.
-    Example: Senin, 24 Feb2025
+    Format datetime to Indonesian date format (UTC → Asia/Jakarta).
+    Example: Senin, 24 Feb 2025
     """
+    # Convert UTC to Asia/Jakarta if timezone-aware
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(settings.timezone)
+    elif dt.tzinfo is None:
+        # Assume naive datetime is UTC
+        dt = dt.replace(tzinfo=timezone.utc)
+        dt = dt.astimezone(settings.timezone)
+    
     days = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"]
     months = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", 
               "Jul", "Agu", "Sep", "Okt", "Nov", "Des"]
@@ -187,7 +195,19 @@ def format_date_indonesian(dt: datetime) -> str:
 
 
 def format_time_range(start: datetime, end: datetime) -> str:
-    """Format time range."""
+    """Format time range (UTC → Asia/Jakarta)."""
+    # Convert both times to Asia/Jakarta
+    for i, dt in enumerate([start, end]):
+        if dt.tzinfo is not None:
+            dt = dt.astimezone(settings.timezone)
+        elif dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+            dt = dt.astimezone(settings.timezone)
+        if i == 0:
+            start = dt
+        else:
+            end = dt
+    
     return f"{start.strftime('%H:%M')} – {end.strftime('%H:%M')} WIB"
 
 
@@ -296,7 +316,7 @@ async def test_notification(group_id: int) -> bool:
         f"✅ *Test Notifikasi*\n\n"
         f"Notifikasi dari Booking Room Backend berhasil!\n"
         f"Grup: {group.group_name}\n"
-        f"Waktu: {datetime.now().strftime('%d/%m/%Y %H:%M:%S')}"
+        f"Waktu: {datetime.now(timezone.utc).astimezone(settings.timezone).strftime('%d/%m/%Y %H:%M:%S')}"
     )
     
     return await send_telegram_message(group_id, message)

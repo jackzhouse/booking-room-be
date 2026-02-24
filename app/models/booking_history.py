@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from beanie import Document, Indexed, PydanticObjectId
 from pydantic import BaseModel, Field
@@ -27,7 +27,7 @@ class BookingHistory(Document):
     action: str  # created, updated, cancelled
     old_data: Optional[HistoryData] = None
     new_data: Optional[HistoryData] = None
-    changed_at: datetime = Field(default_factory=datetime.utcnow)
+    changed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     
     class Settings:
         name = "booking_history"

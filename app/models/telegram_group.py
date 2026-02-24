@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from beanie import Document, Indexed
 from pydantic import Field
@@ -11,8 +11,8 @@ class TelegramGroup(Document):
     group_id: Indexed(int, unique=True)  # Telegram group chat ID
     group_name: str  # Human-readable name for display
     is_active: bool = Field(default=True)  # Active/inactive status
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_by: Optional[ObjectId] = None  # Admin who last updated
     
     class Settings:

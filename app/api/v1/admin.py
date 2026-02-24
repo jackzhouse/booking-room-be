@@ -1,4 +1,5 @@
 from typing import List, Optional
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from pydantic import BaseModel
@@ -27,7 +28,6 @@ from app.schemas.booking import BookingResponse
 from app.schemas.room import RoomResponse
 from app.schemas.auth import UserResponse
 from app.services.telegram_service import test_notification
-from datetime import datetime
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -83,7 +83,7 @@ def convert_user_to_management_response(user: User) -> UserManagementResponse:
         is_admin=user_dict.get("is_admin", False),
         is_active=user_dict.get("is_active", True),
         avatar=user_dict.get("avatar_url"),  # Map avatar_url to avatar
-        created_at=user_dict.get("created_at", datetime.utcnow())
+        created_at=user_dict.get("created_at", datetime.now(timezone.utc))
     )
 
 
@@ -185,7 +185,7 @@ async def toggle_user_admin_role(
         
         # Update admin role
         user.is_admin = request.is_admin
-        user.updated_at = datetime.utcnow()
+        user.updated_at = datetime.now(timezone.utc)
         await user.save()
         
         # Return success response
@@ -224,7 +224,7 @@ async def toggle_user_active_status(
         
         # Update active status
         user.is_active = request.is_active
-        user.updated_at = datetime.utcnow()
+        user.updated_at = datetime.now(timezone.utc)
         await user.save()
         
         # Return success response
@@ -263,7 +263,7 @@ async def update_user_avatar(
         
         # Update avatar
         user.avatar_url = request.avatar
-        user.updated_at = datetime.utcnow()
+        user.updated_at = datetime.now(timezone.utc)
         await user.save()
         
         # Return success response

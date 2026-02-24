@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from beanie import Document, Indexed
 from pydantic import BaseModel, Field
@@ -42,8 +42,8 @@ class Booking(Document):
     consumption_group_id: Optional[int] = None  # Telegram group ID for consumption notifications
     verification_group_id: Optional[int] = None  # Telegram group ID for verification/cleanup notifications
     hrd_notified: bool = Field(default=False)  # Whether HRD has been notified for cleanup
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     
     class Settings:
         name = "bookings"
