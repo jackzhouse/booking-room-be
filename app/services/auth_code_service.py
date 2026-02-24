@@ -59,20 +59,23 @@ class AuthCodeService:
             raise ValueError("Could not generate unique code after multiple attempts")
         
         # Calculate expiration time
-        expires_at = now + timedelta(minutes=self.code_expiry_minutes)
+        expires_at_jakarta = now + timedelta(minutes=self.code_expiry_minutes)
         
-        # Store code in database (MongoDB will convert to UTC)
+        # Store code in database using UTC for consistent storage
+        # MongoDB will store as UTC, we'll convert to Jakarta when reading
         auth_code = AuthCode(
             code=code,
-            created_at=now,
-            expires_at=expires_at,
+            created_at=now.astimezone(timezone.utc),
+            expires_at=expires_at_jakarta.astimezone(timezone.utc),
             used=False
         )
         await auth_code.insert()
         
-        print(f"✅ AuthCodeService: Generated and saved code: {code} (expires at {expires_at})")
+        print(f"✅ AuthCodeService: Generated and saved code: {code}")
+        print(f"✅ Expires at (UTC): {expires_at_jakarta.astimezone(timezone.utc)}")
+        print(f"✅ Expires at (Jakarta): {expires_at_jakarta}")
         
-        return code, expires_at
+        return code, expires_at_jakarta
     
     async def verify_code(self, code: str) -> Optional[AuthCode]:
         """
@@ -143,12 +146,14 @@ class AuthCodeService:
         if not auth_code:
             return False
         
-        # Update code with user data
+        # Update code with user data - store used_at in UTC
+        now_jakarta = datetime.now(settings.timezone)
         auth_code.telegram_user_data = user_data
         auth_code.used = True
-        auth_code.used_at = datetime.now(settings.timezone)
+        auth_code.used_at = now_jakarta.astimezone(timezone.utc)
         
         await auth_code.save()
+        print(f"✅ AuthCodeService: Code {code} marked as used by user {user_data.get('id')}")
         return True
     
     async def get_code_info(self, code: str) -> Optional[AuthCode]:
