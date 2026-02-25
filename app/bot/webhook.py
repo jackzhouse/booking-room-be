@@ -70,6 +70,11 @@ async def handle_webhook_update(data: dict, context: ContextTypes.DEFAULT_TYPE):
     Handle incoming webhook updates from Telegram.
     This function is called by FastAPI when Telegram sends updates via webhook.
     """
+    logger.info("=" * 50)
+    logger.info("🔔 WEBHOOK UPDATE RECEIVED")
+    logger.info("=" * 50)
+    logger.info(f"📦 Raw data keys: {list(data.keys())}")
+    
     app = await get_application()
     
     # Log the incoming update type for debugging
@@ -79,6 +84,13 @@ async def handle_webhook_update(data: dict, context: ContextTypes.DEFAULT_TYPE):
             logger.info(f"📨 Received MESSAGE with NEW_CHAT_MEMBERS (BOT INVITE DETECTED!)")
         else:
             logger.info(f"📨 Received MESSAGE update")
+            # Log message text if present
+            if "text" in message:
+                logger.info(f"💬 Message text: {message.get('text')}")
+            # Log user info
+            if "from" in message:
+                user = message.get("from", {})
+                logger.info(f"👤 From user: {user.get('id')} - {user.get('first_name')}")
     elif "callback_query" in data:
         logger.info(f"📨 Received CALLBACK_QUERY update")
     elif "my_chat_member" in data:
