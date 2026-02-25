@@ -100,17 +100,28 @@ class AuthCodeService:
         
         print(f"🔍 AuthCodeService: Code details - used={auth_code.used}, has_user_data={auth_code.telegram_user_data is not None}, expires_at={auth_code.expires_at}")
         
-        # Get current time in Jakarta timezone
-        now = datetime.now(settings.timezone)
+        # Get current time in UTC (strip microseconds for consistent comparison)
+        now_utc = datetime.utcnow().replace(microsecond=0)
         
-        # Convert expires_at to Jakarta timezone (MongoDB stores as UTC naive datetime)
-        expires_at_jakarta = convert_utc_to_jakarta(auth_code.expires_at)
+        # Convert expires_at from naive UTC to aware UTC
+        if auth_code.expires_at.tzinfo is None:
+            expires_at_utc = auth_code.expires_at.replace(tzinfo=timezone.utc)
+        else:
+            expires_at_utc = auth_code.expires_at
         
-        print(f"🔍 AuthCodeService: Current time (Jakarta): {now}, Expires (Jakarta): {expires_at_jakarta}")
+        # Strip microseconds for comparison
+        expires_at_utc = expires_at_utc.replace(microsecond=0)
         
-        # Check if code is expired
-        if now > expires_at_jakarta:
-            print(f"🔍 AuthCodeService: Code expired (now={now} > expires_at={expires_at_jakarta})")
+        # Convert to Jakarta timezone for display
+        now_jakarta = now_utc.replace(tzinfo=timezone.utc).astimezone(settings.timezone)
+        expires_at_jakarta = expires_at_utc.astimezone(settings.timezone)
+        
+        print(f"🔍 AuthCodeService: Current time (UTC): {now_utc}, Expires (UTC): {expires_at_utc}")
+        print(f"🔍 AuthCodeService: Current time (Jakarta): {now_jakarta}, Expires (Jakarta): {expires_at_jakarta}")
+        
+        # Check if code is expired (compare in UTC)
+        if now_utc.replace(tzinfo=timezone.utc) > expires_at_utc:
+            print(f"🔍 AuthCodeService: Code expired (now={now_utc} > expires_at={expires_at_utc})")
             return None
         
         # Check if code is already used
