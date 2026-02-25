@@ -3,6 +3,7 @@ from typing import Optional, Tuple
 from bson import ObjectId
 from app.models.booking import Booking
 from app.models.setting import Setting
+from app.core.config import settings
 
 
 async def get_operating_hours() -> Tuple[time, time]:
@@ -37,9 +38,9 @@ async def validate_operating_hours(
     try:
         start_hour, end_hour = await get_operating_hours()
         
-        # Extract time component from datetime
-        booking_start = start_time.time()
-        booking_end = end_time.time()
+        # Extract time component from datetime (convert to UTC+7 for display)
+        booking_start = start_time.astimezone(settings.timezone).time()
+        booking_end = end_time.astimezone(settings.timezone).time()
         
         # Check if within operating hours
         if booking_start < start_hour or booking_end > end_hour:
@@ -129,8 +130,12 @@ async def format_conflict_message(conflicting_booking: Booking) -> str:
     division = conflicting_booking.user_snapshot.division or ""
     room_name = conflicting_booking.room_snapshot.name
     
-    start_str = conflicting_booking.start_time.strftime("%H:%M")
-    end_str = conflicting_booking.end_time.strftime("%H:%M")
+    # Convert to UTC+7 for display in error message
+    start_time_jkt = conflicting_booking.start_time.astimezone(settings.timezone)
+    end_time_jkt = conflicting_booking.end_time.astimezone(settings.timezone)
+    
+    start_str = start_time_jkt.strftime("%H:%M")
+    end_str = end_time_jkt.strftime("%H:%M")
     
     message = (
         f"Ruangan sudah dibooking oleh {user_name}"
