@@ -116,3 +116,55 @@ def verify_telegram_init_data(init_data: str) -> Dict[str, Any]:
     except Exception as e:
         print(f"Error parsing Telegram init data: {e}")
         return None
+
+
+def verify_external_token(token: str) -> Optional[Dict[str, Any]]:
+    """
+    Verify JWT token from external app (e.g., Katalis).
+    
+    Decodes and validates the token using the same SECRET_KEY used for BE JWT tokens.
+    Returns payload if valid, None otherwise.
+    
+    Expected token structure:
+    {
+        "producer": "katalis",
+        "userId": "695dcff40cdc7726a29f5006",
+        "accountId": "695dcff40cdc7726a29f5005",
+        "companyId": "0000000074739c67c2a1d6fe",
+        "roles": ["ROLE_USER"],
+        "permission": "",
+        "exp": 1772156888,
+        "iat": 1771984088
+    }
+    
+    Returns:
+        Dictionary with token payload if valid, None otherwise
+    """
+    try:
+        # Decode token with SECRET_KEY (same as BE JWT tokens)
+        payload = jwt.decode(
+            token,
+            settings.SECRET_KEY,
+            algorithms=["HS256"]
+        )
+        
+        # Validate producer
+        if payload.get("producer") != settings.KATALIS_PRODUCER:
+            print(f"Invalid producer: {payload.get('producer')}")
+            return None
+        
+        # Validate required fields
+        required_fields = ["userId", "companyId"]
+        for field in required_fields:
+            if field not in payload:
+                print(f"Missing required field: {field}")
+                return None
+        
+        return payload
+        
+    except JWTError as e:
+        print(f"Error verifying external token: {e}")
+        return None
+    except Exception as e:
+        print(f"Unexpected error verifying external token: {e}")
+        return None

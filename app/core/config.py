@@ -31,6 +31,10 @@ class Settings(BaseSettings):
     WEBHOOK_BASE_URL: str = "https://localhost:8000"
     ADMIN_TELEGRAM_ID: Optional[int] = None
 
+    # External App Integration (e.g., Katalis)
+    # External apps use the same SECRET_KEY for JWT encoding/decoding
+    KATALIS_PRODUCER: str = "katalis"  # Producer name for external app
+
     @validator('SECRET_KEY', 'BOT_TOKEN', 'ADMIN_TELEGRAM_ID', pre=True, always=True)
     def validate_required_in_production(cls, v, field, values):
         app_env = values.get('APP_ENV', 'production')

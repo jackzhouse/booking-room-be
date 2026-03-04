@@ -220,7 +220,14 @@ async def notify_new_booking(booking: Booking):
     group_id = booking.telegram_group_id
     
     # Format username with @ tag if available
-    username_display = booking.user_snapshot.username if booking.user_snapshot.username else booking.user_snapshot.full_name
+    # For external users: use telegram_username if provided, otherwise use full_name
+    # For Telegram users: use username
+    if booking.user_snapshot.external_user_id:
+        # External user from Katalis app
+        username_display = booking.user_snapshot.telegram_username if booking.user_snapshot.telegram_username else booking.user_snapshot.full_name
+    else:
+        # Telegram user
+        username_display = booking.user_snapshot.username if booking.user_snapshot.username else booking.user_snapshot.full_name
     
     # Get division - try booking.division first, then user_snapshot.division
     division = booking.division if booking.division else booking.user_snapshot.division
@@ -248,7 +255,14 @@ async def notify_booking_updated(booking: Booking, old_data: dict):
     group_id = booking.telegram_group_id
     
     # Format username with @ tag if available
-    username_display = booking.user_snapshot.username if booking.user_snapshot.username else booking.user_snapshot.full_name
+    # For external users: use telegram_username if provided, otherwise use full_name
+    # For Telegram users: use username
+    if booking.user_snapshot.external_user_id:
+        # External user from Katalis app
+        username_display = booking.user_snapshot.telegram_username if booking.user_snapshot.telegram_username else booking.user_snapshot.full_name
+    else:
+        # Telegram user
+        username_display = booking.user_snapshot.username if booking.user_snapshot.username else booking.user_snapshot.full_name
     
     # Get division - try booking.division first, then user_snapshot.division
     division = booking.division if booking.division else booking.user_snapshot.division
@@ -277,7 +291,14 @@ async def notify_booking_cancelled(booking: Booking):
     group_id = booking.telegram_group_id
     
     # Format username with @ tag if available
-    username_display = booking.user_snapshot.username if booking.user_snapshot.username else booking.user_snapshot.full_name
+    # For external users: use telegram_username if provided, otherwise use full_name
+    # For Telegram users: use username
+    if booking.user_snapshot.external_user_id:
+        # External user from Katalis app
+        username_display = booking.user_snapshot.telegram_username if booking.user_snapshot.telegram_username else booking.user_snapshot.full_name
+    else:
+        # Telegram user
+        username_display = booking.user_snapshot.username if booking.user_snapshot.username else booking.user_snapshot.full_name
     
     # Get division - try booking.division first, then user_snapshot.division
     division = booking.division if booking.division else booking.user_snapshot.division
@@ -333,7 +354,14 @@ async def notify_consumption_group(booking: Booking):
         return
     
     # Format username with @ tag if available
-    username_display = booking.user_snapshot.username if booking.user_snapshot.username else booking.user_snapshot.full_name
+    # For external users: use telegram_username if provided, otherwise use full_name
+    # For Telegram users: use username
+    if booking.user_snapshot.external_user_id:
+        # External user from Katalis app
+        username_display = booking.user_snapshot.telegram_username if booking.user_snapshot.telegram_username else booking.user_snapshot.full_name
+    else:
+        # Telegram user
+        username_display = booking.user_snapshot.username if booking.user_snapshot.username else booking.user_snapshot.full_name
     
     message = (
         f"🍽️ Permintaan Konsumsi Meeting\n\n"
@@ -359,7 +387,14 @@ async def notify_verification_group_booking(booking: Booking):
         return
     
     # Format username with @ tag if available
-    username_display = booking.user_snapshot.username if booking.user_snapshot.username else booking.user_snapshot.full_name
+    # For external users: use telegram_username if provided, otherwise use full_name
+    # For Telegram users: use username
+    if booking.user_snapshot.external_user_id:
+        # External user from Katalis app
+        username_display = booking.user_snapshot.telegram_username if booking.user_snapshot.telegram_username else booking.user_snapshot.full_name
+    else:
+        # Telegram user
+        username_display = booking.user_snapshot.username if booking.user_snapshot.username else booking.user_snapshot.full_name
     
     # Get division - try booking.division first, then user_snapshot.division
     division = booking.division if booking.division else booking.user_snapshot.division

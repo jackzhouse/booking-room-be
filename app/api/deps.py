@@ -3,7 +3,7 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from bson import ObjectId
 
-from app.core.security import decode_access_token, verify_telegram_hash, verify_telegram_init_data
+from app.core.security import decode_access_token, verify_telegram_hash, verify_telegram_init_data, verify_external_token
 from app.models.user import User
 
 security = HTTPBearer()
@@ -13,7 +13,9 @@ async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security)
 ) -> User:
     """
-    Get the current authenticated user from JWT token.
+    Get the current authenticated user from either:
+    1. BE JWT token (for Telegram users)
+    2. External app JWT token (for external users like Katalis)
     
     Raises:
         HTTPException: If token is invalid or user not found
@@ -24,28 +26,55 @@ async def get_current_user(
         headers={"WWW-Authenticate": "Bearer"},
     )
     
-    # Decode token
-    payload = decode_access_token(credentials.credentials)
-    if payload is None:
-        raise credentials_exception
+    token = credentials.credentials
     
-    # Get user ID from token
-    user_id: str = payload.get("sub")
-    if user_id is None:
-        raise credentials_exception
+    # Try to decode as BE JWT token (for Telegram users)
+    payload = decode_access_token(token)
+    if payload:
+        # Get user ID from token
+        user_id: str = payload.get("sub")
+        if user_id is None:
+            raise credentials_exception
+        
+        # Get user from database
+        user = await User.get(user_id)
+        if user is None:
+            raise credentials_exception
+        
+        if not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="User account is inactive"
+            )
+        
+        return user
     
-    # Get user from database
-    user = await User.get(user_id)
-    if user is None:
-        raise credentials_exception
-    
-    if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="User account is inactive"
+    # Try to decode as external app JWT token (for external users)
+    external_payload = verify_external_token(token)
+    if external_payload:
+        # Get external user ID from token
+        external_user_id: str = external_payload.get("userId")
+        if external_user_id is None:
+            raise credentials_exception
+        
+        # Get user from database by external_user_id
+        user = await User.find_one(
+            User.external_user_id == external_user_id
         )
+        
+        if user is None:
+            raise credentials_exception
+        
+        if not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="User account is inactive"
+            )
+        
+        return user
     
-    return user
+    # Neither token type worked
+    raise credentials_exception
 
 
 async def get_current_active_user(

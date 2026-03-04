@@ -29,12 +29,16 @@ class TelegramMiniAppRequest(BaseModel):
 class UserResponse(BaseModel):
     """Response schema for user data"""
     id: str = Field(alias="_id")
-    telegram_id: int
+    telegram_id: Optional[int] = None  # Optional for external users
     full_name: str
     username: Optional[str] = None
     avatar_url: Optional[str] = None
     division: Optional[str] = None
     email: Optional[str] = None
+    telegram_username: Optional[str] = None  # Telegram username for external users
+    external_user_id: Optional[str] = None  # User ID from external app
+    external_company_id: Optional[str] = None  # Company ID from external app
+    external_producer: Optional[str] = None  # External app producer
     is_admin: bool
     is_active: bool
     created_at: datetime
@@ -95,3 +99,41 @@ class AuthCodeVerifyResponse(BaseModel):
     success: bool
     data: AuthCodeVerifyData
     error: Optional[Dict[str, str]] = None
+
+
+# External App Integration Schemas
+
+class ExternalTokenVerifyRequest(BaseModel):
+    """Request schema for verifying external app token"""
+    token: str
+    
+    class Config:
+        extra = "allow"
+
+
+class ExternalTokenVerifyResponse(BaseModel):
+    """Response schema for external token verification"""
+    success: bool
+    registered: bool
+    user: Optional[UserResponse] = None
+    user_id: Optional[str] = None
+    company_id: Optional[str] = None
+
+
+class ExternalRegisterRequest(BaseModel):
+    """Request schema for registering external user"""
+    token: str
+    full_name: str
+    division: str
+    email: str
+    telegram_username: Optional[str] = None
+    
+    class Config:
+        extra = "allow"
+
+
+class ExternalRegisterResponse(BaseModel):
+    """Response schema for external user registration"""
+    success: bool
+    message: str
+    user: UserResponse

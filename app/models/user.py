@@ -5,14 +5,18 @@ from pydantic import Field, EmailStr
 
 
 class User(Document):
-    """User model for Telegram-authenticated users"""
+    """User model for Telegram-authenticated users and external app users"""
     
-    telegram_id: Indexed(int, unique=True)  # Unique index for telegram_id
+    telegram_id: Optional[Indexed(int, unique=True)] = None  # Unique index for telegram_id, optional for external users
     full_name: str
     username: Optional[str] = None
     avatar_url: Optional[str] = None
     division: Optional[str] = None
     email: Optional[EmailStr] = None
+    telegram_username: Optional[str] = None  # Telegram username for external users (optional)
+    external_user_id: Optional[str] = None  # User ID from external app (e.g., Katalis)
+    external_company_id: Optional[str] = None  # Company ID from external app
+    external_producer: Optional[str] = None  # External app producer (e.g., "katalis")
     is_admin: bool = False
     is_active: bool = True
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -25,7 +29,8 @@ class User(Document):
             "telegram_id",
             "username",
             "is_admin",
-            "is_active"
+            "is_active",
+            "external_user_id"  # Index for external users lookup
         ]
     
     class Config:

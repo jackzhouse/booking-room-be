@@ -5,7 +5,7 @@ from bson import ObjectId
 from urllib.parse import urlencode
 from pydantic import BaseModel
 
-from app.core.security import create_access_token, verify_telegram_hash, verify_telegram_init_data
+from app.core.security import create_access_token, verify_telegram_hash, verify_telegram_init_data, verify_external_token
 from app.core.config import settings
 from app.models.user import User
 from app.schemas.auth import (
@@ -17,7 +17,11 @@ from app.schemas.auth import (
     AuthCodeResponse,
     AuthCodeVerifyResponse,
     AuthCodeVerifyData,
-    AuthCodeUserData
+    AuthCodeUserData,
+    ExternalTokenVerifyRequest,
+    ExternalTokenVerifyResponse,
+    ExternalRegisterRequest,
+    ExternalRegisterResponse
 )
 from app.api.deps import get_user_by_telegram_id
 from app.services.auth_code_service import auth_code_service
@@ -333,3 +337,106 @@ async def get_me(current_user: User = Depends(get_user_by_telegram_id)):
     # This endpoint should use JWT token, but for simplicity we're using telegram_id
     # In production, this should use get_current_user dependency
     return UserResponse(**current_user.dict(by_alias=True))
+
+
+# External App Integration Endpoints
+
+@router.post("/external/verify-token", response_model=ExternalTokenVerifyResponse)
+async def verify_external_token_endpoint(request: ExternalTokenVerifyRequest):
+    """
+    Verify external app token and check user registration status.
+    
+    This endpoint verifies JWT token from external app (e.g., Katalis)
+    and returns whether the user is registered or not.
+    
+    If user is not registered, returns user_id and company_id for registration.
+    If user is registered, returns user data.
+    """
+    # Verify external token
+    payload = verify_external_token(request.token)
+    
+    if not payload:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token"
+        )
+    
+    # Check if user exists based on external_user_id
+    user = await User.find_one(
+        User.external_user_id == payload["userId"]
+    )
+    
+    if user:
+        # User already registered
+        # Update last login
+        user.last_login_at = datetime.now(settings.timezone)
+        await user.save()
+        
+        return ExternalTokenVerifyResponse(
+            success=True,
+            registered=True,
+            user=UserResponse(**user.dict(by_alias=True))
+        )
+    else:
+        # User not registered, return info for registration
+        return ExternalTokenVerifyResponse(
+            success=True,
+            registered=False,
+            user_id=payload["userId"],
+            company_id=payload["companyId"]
+        )
+
+
+@router.post("/external/register", response_model=ExternalRegisterResponse)
+async def register_external_user_endpoint(request: ExternalRegisterRequest):
+    """
+    Register a new user from external app.
+    
+    This endpoint creates a new user account using data from the registration form
+    and the verified external token.
+    
+    The external token must be valid and the user must not exist yet.
+    """
+    # Verify external token
+    payload = verify_external_token(request.token)
+    
+    if not payload:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token"
+        )
+    
+    # Check if user already exists
+    existing_user = await User.find_one(
+        User.external_user_id == payload["userId"]
+    )
+    
+    if existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User already registered"
+        )
+    
+    # Create new user
+    user = User(
+        telegram_id=None,  # null for external users
+        full_name=request.full_name,
+        division=request.division,
+        email=request.email,
+        telegram_username=request.telegram_username,
+        external_user_id=payload["userId"],
+        external_company_id=payload["companyId"],
+        external_producer=payload["producer"],
+        is_admin=False,  # external users are always regular users
+        is_active=True,
+        created_at=datetime.now(settings.timezone),
+        last_login_at=datetime.now(settings.timezone)
+    )
+    
+    await user.insert()
+    
+    return ExternalRegisterResponse(
+        success=True,
+        message="User registered successfully",
+        user=UserResponse(**user.dict(by_alias=True))
+    )

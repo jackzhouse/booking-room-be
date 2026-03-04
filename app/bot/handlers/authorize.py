@@ -7,6 +7,7 @@ from telegram.ext import ContextTypes
 
 from app.services.auth_code_service import auth_code_service
 from app.core.security import create_access_token
+from app.core.config import settings
 from app.models.user import User
 
 
@@ -132,23 +133,17 @@ async def authorize_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     # Build full name
     full_name = user_obj.full_name or "User"
     
-    # Build success message
+    # Build success message (simplified, in Indonesian, without token)
     message = (
-        f"✅ Authorization successful!\n\n"
-        f"Welcome, {full_name}!\n\n"
+        f"✅ Otorisasi berhasil!\n\n"
+        f"Selamat datang, {full_name}!\n\n"
+        f"Anda akan otomatis login ke dashboard aplikasi.\n\n"
+        f"🔗 Buka aplikasi: {settings.FRONTEND_URL}"
     )
     
     if user_obj.is_admin:
-        message += "🔑 You have admin privileges.\n"
+        message += "\n\n🔑 Anda memiliki hak akses admin."
     
-    if access_token:
-        # Include token in message
-        message += f"\n🔐 Your access token:\n`{access_token}`\n"
-        message += "\n💡 Use this token to authenticate with the frontend."
-    
-    await update.message.reply_text(
-        message,
-        parse_mode="Markdown"
-    )
+    await update.message.reply_text(message)
     
     print(f"🔍 Bot: Authorization successful for user {user.id}")
