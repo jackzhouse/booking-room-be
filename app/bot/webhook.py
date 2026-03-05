@@ -128,19 +128,22 @@ async def set_webhook():
     """
     Set webhook for Telegram bot.
     This should be called during application startup.
+    Creates a temporary application instance to set the webhook without affecting the main application.
     """
     webhook_url = settings.webhook_url
     logger.info(f"🔗 Setting Telegram webhook to: {webhook_url}")
     
     try:
-        await application.initialize()
-        await application.bot.set_webhook(
+        # Create a temporary application instance just for setting webhook
+        temp_app = Application.builder().token(settings.BOT_TOKEN).build()
+        await temp_app.initialize()
+        await temp_app.bot.set_webhook(
             url=webhook_url,
             drop_pending_updates=True,
             allowed_updates=["message", "callback_query", "chat_member", "my_chat_member"]
         )
         logger.info("✅ Telegram webhook set successfully with allowed_updates: message, callback_query, chat_member, my_chat_member")
-        await application.shutdown()
+        await temp_app.shutdown()
     except Exception as e:
         logger.error(f"❌ Error setting webhook: {str(e)}")
         raise
@@ -150,12 +153,15 @@ async def delete_webhook():
     """
     Delete webhook for Telegram bot.
     This should be called during application shutdown or when switching to polling mode.
+    Creates a temporary application instance to delete webhook without affecting the main application.
     """
     try:
-        await application.initialize()
-        await application.bot.delete_webhook()
+        # Create a temporary application instance just for deleting webhook
+        temp_app = Application.builder().token(settings.BOT_TOKEN).build()
+        await temp_app.initialize()
+        await temp_app.bot.delete_webhook()
         logger.info("✅ Telegram webhook deleted successfully")
-        await application.shutdown()
+        await temp_app.shutdown()
     except Exception as e:
         logger.error(f"❌ Error deleting webhook: {str(e)}")
         raise
