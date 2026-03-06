@@ -35,9 +35,14 @@ class AuthCodeService:
         """Initialize auth code service."""
         self.code_expiry_minutes = 3  # Codes expire after 3 minutes
     
-    async def generate_code(self) -> tuple[str, datetime]:
+    async def generate_code(self, telegram_user_id: Optional[int] = None) -> tuple[str, datetime]:
         """
         Generate a random 6-digit authentication code.
+        
+        Args:
+            telegram_user_id: Telegram user ID to authorize the code for (optional)
+                           If provided, code can only be used by this user
+                           If None, code can be used by any user (first-come-first-served)
         
         Returns:
             Tuple of (code, expires_at in Jakarta timezone)
@@ -65,13 +70,17 @@ class AuthCodeService:
         # MongoDB will store as UTC, we'll convert to Jakarta when reading
         auth_code = AuthCode(
             code=code,
+            telegram_user_id=telegram_user_id,  # Optional: Link code to specific user if provided
             created_at=now.astimezone(timezone.utc),
             expires_at=expires_at_jakarta.astimezone(timezone.utc),
             used=False
         )
         await auth_code.insert()
         
-        print(f"✅ AuthCodeService: Generated and saved code: {code}")
+        if telegram_user_id:
+            print(f"✅ AuthCodeService: Generated and saved code: {code} for user {telegram_user_id}")
+        else:
+            print(f"✅ AuthCodeService: Generated and saved code: {code} (no user restriction)")
         print(f"✅ Expires at (UTC): {expires_at_jakarta.astimezone(timezone.utc)}")
         print(f"✅ Expires at (Jakarta): {expires_at_jakarta}")
         
@@ -140,22 +149,37 @@ class AuthCodeService:
         print(f"🔍 AuthCodeService: Code is valid!")
         return auth_code
     
-    async def mark_code_used(self, code: str, user_data: Dict[str, Any]) -> bool:
+    async def mark_code_used(self, code: str, user_data: Dict[str, Any]) -> tuple[bool, str]:
         """
         Mark a code as used and associate it with user data.
+        Validates that the Telegram user ID matches the authorized user ID.
         
         Args:
             code: The authentication code
             user_data: User data to associate with code
             
         Returns:
-            True if successfully marked, False otherwise
+            Tuple of (success, error_message)
         """
-        # Find and update code
+        # Find code
         auth_code = await AuthCode.find_one(AuthCode.code == code)
         
         if not auth_code:
-            return False
+            return False, "Code not found"
+        
+        # Check if code is already used
+        if auth_code.used:
+            return False, "Code already used"
+        
+        # Validate telegram_user_id matches (only if telegram_user_id is set)
+        # If telegram_user_id is None (web user), allow first-come-first-served
+        authorized_user_id = auth_code.telegram_user_id
+        requesting_user_id = user_data.get("id")
+        
+        # Only validate if code has a user ID restriction
+        if authorized_user_id is not None and requesting_user_id != authorized_user_id:
+            print(f"❌ AuthCodeService: User mismatch - Code authorized for {authorized_user_id}, requested by {requesting_user_id}")
+            return False, "USER_MISMATCH"
         
         # Update code with user data - store used_at in UTC
         now_jakarta = datetime.now(settings.timezone)
@@ -164,8 +188,8 @@ class AuthCodeService:
         auth_code.used_at = now_jakarta.astimezone(timezone.utc)
         
         await auth_code.save()
-        print(f"✅ AuthCodeService: Code {code} marked as used by user {user_data.get('id')}")
-        return True
+        print(f"✅ AuthCodeService: Code {code} marked as used by user {requesting_user_id}")
+        return True, ""
     
     async def get_code_info(self, code: str) -> Optional[AuthCode]:
         """

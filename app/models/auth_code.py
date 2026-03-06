@@ -16,6 +16,9 @@ class AuthCode(Document):
     code: str = Indexed(unique=True, max_length=6)
     """6-digit authorization code."""
     
+    telegram_user_id: Optional[int] = None
+    """Telegram user ID this code is authorized for (set during generation)."""
+    
     telegram_user_data: Optional[Dict[str, Any]] = None
     """Telegram user data associated with this code (after verification)."""
     

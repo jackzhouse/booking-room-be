@@ -13,6 +13,7 @@ from app.schemas.auth import (
     TelegramMiniAppRequest,
     TokenResponse,
     UserResponse,
+    AuthCodeGenerateRequest,
     AuthCodeData,
     AuthCodeResponse,
     AuthCodeVerifyResponse,
@@ -169,16 +170,16 @@ async def telegram_mini_app_login(request: TelegramMiniAppRequest):
 
 
 @router.post("/generate-code", response_model=AuthCodeResponse)
-async def generate_auth_code():
+async def generate_auth_code(request: AuthCodeGenerateRequest):
     """
     Generate a new authentication code.
     
-    The frontend can call this to get a 6-digit code that user
-    can send to bot via /authorize command.
+    If telegram_user_id is provided (Mini App), the code can only be used by that specific user.
+    If telegram_user_id is None or not provided (Web), any user can use the code (first-come-first-served).
     
     Codes expire after 3 minutes.
     """
-    code, expires_at = await auth_code_service.generate_code()
+    code, expires_at = await auth_code_service.generate_code(request.telegram_user_id)
     
     # Calculate expires_in (seconds until expiration)
     now = datetime.now(settings.timezone)
@@ -296,7 +297,22 @@ async def verify_code_with_telegram(
         )
     
     # Associate Telegram user data with code
-    await auth_code_service.mark_code_used(code, telegram_user_data)
+    success, error_msg = await auth_code_service.mark_code_used(code, telegram_user_data)
+    
+    if not success:
+        # Handle different error cases
+        if error_msg == "USER_MISMATCH":
+            return AuthCodeVerifyResponse(
+                success=False,
+                data=AuthCodeVerifyData(status="invalid"),
+                error={"code": "USER_MISMATCH", "message": "This code is not valid for your Telegram account"}
+            )
+        else:
+            return AuthCodeVerifyResponse(
+                success=False,
+                data=AuthCodeVerifyData(status="expired"),
+                error={"code": "CODE_ERROR", "message": error_msg or "Code processing error"}
+            )
     
     # Create or update user
     user = await create_or_update_user(telegram_user_data)

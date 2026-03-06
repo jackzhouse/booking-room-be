@@ -119,7 +119,27 @@ async def authorize_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     }
     
     # Mark code as used with user data
-    await auth_code_service.mark_code_used(code, telegram_user_data)
+    success, error_msg = await auth_code_service.mark_code_used(code, telegram_user_data)
+    print(f"🔍 Bot: Mark code used result - success={success}, error={error_msg}")
+    
+    # Check for user mismatch
+    if not success and error_msg == "USER_MISMATCH":
+        await update.message.reply_text(
+            "❌ Kode ini tidak valid untuk Anda.\n\n"
+            "Kode otorisasi hanya dapat digunakan oleh akun Telegram yang membuatkannya.\n\n"
+            "Silakan minta kode baru dari aplikasi."
+        )
+        print(f"🔍 Bot: User mismatch - code authorized for different user")
+        return
+    
+    if not success:
+        await update.message.reply_text(
+            "❌ Gagal memproses kode otorisasi.\n\n"
+            "Silakan coba lagi dengan kode baru."
+        )
+        print(f"🔍 Bot: Code marking failed - {error_msg}")
+        return
+    
     print(f"🔍 Bot: Code {code} marked as used")
     
     # Create or update user

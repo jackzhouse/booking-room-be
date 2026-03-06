@@ -62,6 +62,14 @@ class UserCreate(BaseModel):
     email: Optional[str] = None
 
 
+class AuthCodeGenerateRequest(BaseModel):
+    """Request schema for generating auth code"""
+    telegram_user_id: Optional[int] = Field(None, description="Telegram user ID to authorize the code for (optional for web users)")
+    
+    class Config:
+        extra = "allow"
+
+
 class AuthCodeData(BaseModel):
     """Inner data schema for auth code generation"""
     code: str

@@ -76,7 +76,10 @@ async def lifespan(app: FastAPI):
         print("✅ Telegram webhook configured successfully")
     except Exception as e:
         print(f"⚠️  Warning: Could not set Telegram webhook: {str(e)}")
-        print("   Bot features will be limited until a valid BOT_TOKEN is provided.")
+        print("   Bot features will be limited until a valid webhook URL is provided.")
+        print("   This is not critical - the application will continue running.")
+        print("   You can manually set the webhook later using the Telegram API.")
+        # Don't raise exception - allow app to continue even if webhook setup fails
     
     yield
     
