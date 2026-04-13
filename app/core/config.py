@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     SECRET_KEY: Optional[str] = None
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRE_MINUTES: int = 10080  # 7 days
-    FRONTEND_URL: str = "https://booking-meeting-flax.vercel.app"  # Production frontend URL
+    FRONTEND_URL: str = "https://booking-room.tkilocal.biz.id"  # Production frontend URL
     PREFIX_NAME: str = "/api/v1"  # API prefix
 
     # Timezone
