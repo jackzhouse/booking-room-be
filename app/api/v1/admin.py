@@ -28,6 +28,7 @@ from app.schemas.booking import BookingResponse
 from app.schemas.room import RoomResponse
 from app.schemas.auth import UserResponse
 from app.services.telegram_service import test_notification
+from app.core.enums import RoleEnum
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -77,10 +78,10 @@ def convert_user_to_management_response(user: User) -> UserManagementResponse:
     user_dict = user.dict(by_alias=True)
     return UserManagementResponse(
         id=str(user_dict.get("_id", "")),
-        telegram_id=user_dict.get("telegram_id", 0),
+        telegram_id=user_dict.get("telegram_id"),
         full_name=user_dict.get("full_name", ""),
         username=user_dict.get("username"),
-        is_admin=user_dict.get("is_admin", False),
+        role=user_dict.get("role"),
         is_active=user_dict.get("is_active", True),
         avatar=user_dict.get("avatar_url"),  # Map avatar_url to avatar
         created_at=user_dict.get("created_at", datetime.now(timezone.utc))
@@ -110,7 +111,7 @@ async def admin_cancel_booking(
         booking = await cancel_booking(
             booking_id=booking_id,
             user_id=current_user.id,
-            is_admin=True
+            has_admin_role=True
         )
         
         return convert_booking_to_response(booking)
@@ -147,7 +148,9 @@ async def get_all_users(
     try:
         # Build query based on role filter
         if role == "admin":
-            users = await User.find(User.is_admin == True).sort(-User.created_at).to_list()
+            users = await User.find(
+                (User.role == RoleEnum.ADMIN) | (User.role == RoleEnum.SUPER_ADMIN)
+            ).sort(-User.created_at).to_list()
         else:  # role == "all" or any other value
             users = await User.find().sort(-User.created_at).to_list()
         
@@ -169,9 +172,7 @@ async def toggle_user_admin_role(
     current_user: User = Depends(get_current_admin_user)
 ):
     """
-    Toggle user admin role (Admin only).
-    
-    Updates the is_admin field for a specific user.
+    Update user role (Admin only).
     """
     try:
         # Find user by ID
@@ -183,8 +184,8 @@ async def toggle_user_admin_role(
                 detail="User not found"
             )
         
-        # Update admin role
-        user.is_admin = request.is_admin
+        # Update role
+        user.role = request.role
         user.updated_at = datetime.now(timezone.utc)
         await user.save()
         
@@ -197,7 +198,7 @@ async def toggle_user_admin_role(
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to update user admin role"
+            detail="Failed to update user role"
         )
 
 

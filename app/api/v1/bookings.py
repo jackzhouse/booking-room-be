@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from bson import ObjectId
 
 from app.models.booking import Booking
+from app.core.authz import user_has_admin_role
 from app.schemas.booking import (
     BookingCreate,
     BookingUpdate,
@@ -139,7 +140,7 @@ async def get_booking(
         )
     
     # Check ownership or admin
-    if booking.user_id != current_user.id and not current_user.is_admin:
+    if booking.user_id != current_user.id and not user_has_admin_role(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You don't have permission to view this booking"
@@ -175,7 +176,7 @@ async def create_new_booking(
             consumption_note=booking_data.consumption_note,
             consumption_group_id=booking_data.consumption_group_id,
             verification_group_id=booking_data.verification_group_id,
-            is_admin=current_user.is_admin
+            has_admin_role=user_has_admin_role(current_user)
         )
         
         return convert_booking_to_response(booking)
@@ -206,7 +207,7 @@ async def publish_existing_booking(
         booking = await publish_booking(
             booking_id=booking_id,
             user_id=current_user.id,
-            is_admin=current_user.is_admin
+            has_admin_role=user_has_admin_role(current_user)
         )
         
         return convert_booking_to_response(booking)
@@ -240,7 +241,7 @@ async def update_existing_booking(
             description=booking_data.description,
             start_time=booking_data.start_time,
             end_time=booking_data.end_time,
-            is_admin=current_user.is_admin
+            has_admin_role=user_has_admin_role(current_user)
         )
         
         return convert_booking_to_response(booking)
@@ -271,7 +272,7 @@ async def cancel_existing_booking(
         booking = await cancel_booking(
             booking_id=booking_id,
             user_id=current_user.id,
-            is_admin=current_user.is_admin
+            has_admin_role=user_has_admin_role(current_user)
         )
         
         return convert_booking_to_response(booking)
@@ -297,7 +298,7 @@ async def delete_existing_booking(
         result = await delete_booking(
             booking_id=booking_id,
             user_id=current_user.id,
-            is_admin=current_user.is_admin
+            has_admin_role=user_has_admin_role(current_user)
         )
         
         return result

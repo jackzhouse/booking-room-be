@@ -3,34 +3,68 @@ from typing import Optional
 from beanie import Document, Indexed
 from pydantic import Field, EmailStr
 
+from app.core.enums import RoleEnum, GenderEnum, UserTypeEnum
+
 
 class User(Document):
-    """User model for Telegram-authenticated users and external app users"""
+    """User model supporting multiple authentication types: Telegram, External, Internal."""
     
-    telegram_id: Optional[Indexed(int, unique=True)] = None  # Unique index for telegram_id, optional for external users
-    full_name: str
+    # Identity fields
+    telegram_id: Optional[Indexed(int, unique=True)] = None
+    account_id: Optional[str] = None  # External account ObjectId (e.g., accountId)
+    external_user_id: Optional[str] = None
     username: Optional[str] = None
+    
+    # Profile fields
+    full_name: str
     avatar_url: Optional[str] = None
-    division: Optional[str] = None
     email: Optional[EmailStr] = None
-    telegram_username: Optional[str] = None  # Telegram username for external users (optional)
-    external_user_id: Optional[str] = None  # User ID from external app (e.g., Katalis)
-    external_company_id: Optional[str] = None  # Company ID from external app
-    external_producer: Optional[str] = None  # External app producer (e.g., "katalis")
-    is_admin: bool = False
+    phone: Optional[str] = None
+    gender: Optional[GenderEnum] = None
+    division: Optional[str] = None
+    
+    # External app fields
+    external_company_id: Optional[str] = None
+    external_producer: Optional[str] = None  # e.g., "katalis"
+    telegram_username: Optional[str] = None  # For external users
+    
+    # Access control fields
+    role: Optional[RoleEnum] = None  # User role (Admin, Teacher, Student, etc.)
     is_active: bool = True
+    user_type: UserTypeEnum = UserTypeEnum.TELEGRAM
+    
+    # Company association
+    company_id: Optional[str] = None  # ObjectId as string (references Company)
+    
+    # Password for internal users (Teacher, Admin)
+    password: Optional[str] = None  # Hashed password
+    nip: Optional[str] = None  # Employee ID for teachers
+    
+    # Audit fields
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    created_by: Optional[str] = None  # ObjectId as string
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_by: Optional[str] = None  # ObjectId as string
+    is_deleted: bool = False
+    deleted_at: Optional[datetime] = None
+    deleted_by: Optional[str] = None
+    
+    # Login tracking
     last_login_at: Optional[datetime] = None
     
     class Settings:
         name = "users"
         indexes = [
             "telegram_id",
+            "account_id",
+            "external_user_id",
             "username",
-            "is_admin",
+            "email",
             "is_active",
-            "external_user_id"  # Index for external users lookup
+            "role",
+            "company_id",
+            "is_deleted",
+            "user_type"
         ]
     
     class Config:
@@ -40,9 +74,10 @@ class User(Document):
                 "telegram_id": 123456789,
                 "full_name": "Budi Santoso",
                 "username": "budisantoso",
+                "email": "budi@example.com",
                 "avatar_url": "https://...",
-                "division": "Engineering",
-                "is_admin": False,
-                "is_active": True
+                "role": "ROLE_USER",
+                "is_active": True,
+                "user_type": "TELEGRAM"
             }
         }

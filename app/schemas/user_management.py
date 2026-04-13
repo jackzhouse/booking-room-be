@@ -2,14 +2,16 @@ from datetime import datetime
 from typing import Optional, List
 from pydantic import BaseModel, Field
 
+from app.core.enums import RoleEnum
+
 
 class UserManagementResponse(BaseModel):
     """Response schema for user in user management"""
     id: str
-    telegram_id: int
+    telegram_id: Optional[int] = None
     full_name: str
     username: Optional[str] = None
-    is_admin: bool
+    role: Optional[RoleEnum] = None
     is_active: bool
     avatar: Optional[str] = None  # Mapped from avatar_url
     created_at: datetime
@@ -22,8 +24,8 @@ class UserListResponse(BaseModel):
 
 
 class UpdateAdminRequest(BaseModel):
-    """Request schema for updating admin role"""
-    is_admin: bool
+    """Request schema for updating role"""
+    role: RoleEnum
 
 
 class UpdateStatusRequest(BaseModel):

@@ -36,6 +36,7 @@ from app.models.booking_history import BookingHistory
 from app.models.setting import Setting
 from app.models.auth_code import AuthCode
 from app.models.telegram_group import TelegramGroup
+from app.models.company import Company
 
 
 @asynccontextmanager
@@ -52,7 +53,8 @@ async def lifespan(app: FastAPI):
         BookingHistory,
         Setting,
         AuthCode,
-        TelegramGroup
+        TelegramGroup,
+        Company
     ])
     
     # Initialize default settings if not exist

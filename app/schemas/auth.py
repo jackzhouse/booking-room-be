@@ -1,7 +1,9 @@
 from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from pydantic import BaseModel, Field
 from bson import ObjectId
+
+from app.core.enums import RoleEnum, GenderEnum, UserTypeEnum
 
 
 class TelegramLoginRequest(BaseModel):
@@ -29,18 +31,23 @@ class TelegramMiniAppRequest(BaseModel):
 class UserResponse(BaseModel):
     """Response schema for user data"""
     id: str = Field(alias="_id")
-    telegram_id: Optional[int] = None  # Optional for external users
+    telegram_id: Optional[int] = None
+    account_id: Optional[str] = Field(default=None, serialization_alias="accountId")
+    external_user_id: Optional[str] = None
     full_name: str
     username: Optional[str] = None
     avatar_url: Optional[str] = None
-    division: Optional[str] = None
     email: Optional[str] = None
-    telegram_username: Optional[str] = None  # Telegram username for external users
-    external_user_id: Optional[str] = None  # User ID from external app
-    external_company_id: Optional[str] = None  # Company ID from external app
-    external_producer: Optional[str] = None  # External app producer
-    is_admin: bool
-    is_active: bool
+    phone: Optional[str] = None
+    gender: Optional[GenderEnum] = None
+    division: Optional[str] = None
+    telegram_username: Optional[str] = None
+    external_company_id: Optional[str] = None
+    external_producer: Optional[str] = None
+    role: Optional[RoleEnum] = None
+    is_active: bool = True
+    user_type: UserTypeEnum = UserTypeEnum.TELEGRAM
+    company_id: Optional[str] = None
     created_at: datetime
     last_login_at: Optional[datetime] = None
     
@@ -52,6 +59,7 @@ class TokenResponse(BaseModel):
     """Response schema for successful authentication"""
     access_token: str
     token_type: str = "bearer"
+    login_source: str
     user: UserResponse
 
 
@@ -91,7 +99,7 @@ class AuthCodeUserData(BaseModel):
     first_name: str
     last_name: Optional[str] = None
     photo_url: Optional[str] = None
-    is_admin: bool = False
+    role: Optional[RoleEnum] = None
     is_active: bool = True
 
 class AuthCodeVerifyData(BaseModel):
@@ -112,11 +120,12 @@ class AuthCodeVerifyResponse(BaseModel):
 # External App Integration Schemas
 
 class ExternalTokenVerifyRequest(BaseModel):
-    """Request schema for verifying external app token"""
-    token: str
+    """Request schema for verifying external user data"""
+    account_id: str = Field(alias="accountId")
     
     class Config:
         extra = "allow"
+        populate_by_name = True
 
 
 class ExternalTokenVerifyResponse(BaseModel):
@@ -130,14 +139,21 @@ class ExternalTokenVerifyResponse(BaseModel):
 
 class ExternalRegisterRequest(BaseModel):
     """Request schema for registering external user"""
-    token: str
-    full_name: str
-    division: str
-    email: str
-    telegram_username: Optional[str] = None
+    account_id: str = Field(alias="accountId")
+    full_name: str = Field(alias="fullName")
+    division: Optional[str] = None
+    email: Optional[str] = None
+    username: Optional[str] = None
+    telegram_username: Optional[str] = Field(default=None, alias="telegramUsername")
+    company_id: Optional[str] = Field(default=None, alias="companyId")
+    producer: Optional[str] = None
+    role: Optional[str] = None
+    roles: Optional[List[str]] = None
+    user_id: Optional[str] = Field(default=None, alias="userId")
     
     class Config:
         extra = "allow"
+        populate_by_name = True
 
 
 class ExternalRegisterResponse(BaseModel):
@@ -145,3 +161,110 @@ class ExternalRegisterResponse(BaseModel):
     success: bool
     message: str
     user: UserResponse
+
+
+# ===== Teacher/Admin User Schemas =====
+
+class TokenLoginRequest(BaseModel):
+    """Request schema for external user-data login"""
+    account_id: str = Field(alias="accountId")
+    full_name: Optional[str] = Field(default=None, alias="fullName")
+    username: Optional[str] = None
+    email: Optional[str] = None
+    division: Optional[str] = None
+    telegram_username: Optional[str] = Field(default=None, alias="telegramUsername")
+    company_id: Optional[str] = Field(default=None, alias="companyId")
+    producer: Optional[str] = None
+    role: Optional[str] = None
+    roles: Optional[List[str]] = None
+    user_id: Optional[str] = Field(default=None, alias="userId")
+
+    class Config:
+        extra = "allow"
+        populate_by_name = True
+
+
+class TokenData(BaseModel):
+    """Token data structure"""
+    producer: str = "Booking Room"
+    user_id: str = None
+    username: str = None
+    full_name: str = None
+    role: Optional[RoleEnum] = None
+    company_id: Optional[str] = None
+    exp: Optional[int] = None
+
+
+class TokenResponseLogin(BaseModel):
+    """Response schema for login"""
+    access_token: str
+    token_type: str = "bearer"
+    login_source: str
+    user: UserResponse
+    expires_in: int  # Seconds
+
+
+class TeacherCreateRequest(BaseModel):
+    """Request schema for creating teacher"""
+    full_name: str
+    username: str
+    password: str
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    gender: Optional[GenderEnum] = None
+    nip: Optional[str] = None
+    
+    class Config:
+        extra = "allow"
+
+
+class AdminCreateRequest(BaseModel):
+    """Request schema for creating admin"""
+    full_name: str
+    username: str
+    password: str
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    gender: Optional[GenderEnum] = None
+    role: RoleEnum = RoleEnum.ADMIN
+    
+    class Config:
+        extra = "allow"
+
+
+class UserUpdateRequest(BaseModel):
+    """Request schema for updating user profile"""
+    full_name: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    gender: Optional[GenderEnum] = None
+    division: Optional[str] = None
+    avatar_url: Optional[str] = None
+
+
+class PasswordChangeRequest(BaseModel):
+    """Request schema for changing password"""
+    old_password: str
+    new_password: str
+    confirm_password: str
+
+
+# ===== Company Schemas =====
+
+class CompanyResponse(BaseModel):
+    """Response schema for company data"""
+    id: str = Field(alias="_id")
+    name: str
+    initial: str
+    is_active: bool
+    created_at: datetime
+    
+    class Config:
+        populate_by_name = True
+
+
+class CompanyCreateRequest(BaseModel):
+    """Request schema for creating company"""
+    name: str
+    initial: str
+    is_active: bool = True

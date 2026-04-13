@@ -12,6 +12,7 @@ from app.models.booking_history import BookingHistory, HistoryData
 from app.models.room import Room
 from app.models.setting import Setting
 from app.models.user import User
+from app.core.authz import user_has_admin_role
 from app.services.conflict_service import (
     check_booking_conflict,
     validate_operating_hours,
@@ -115,7 +116,7 @@ async def create_booking(
     consumption_note: Optional[str] = None,
     consumption_group_id: Optional[int] = None,
     verification_group_id: Optional[int] = None,
-    is_admin: bool = False
+    has_admin_role: bool = False
 ) -> Booking:
     """
     Create a new booking with validation.
@@ -143,12 +144,12 @@ async def create_booking(
         raise ValueError("Grup Telegram tidak ditemukan atau tidak aktif")
     
     # Validate operating hours (non-admin only)
-    is_valid, error_msg = await validate_operating_hours(start_time, end_time, is_admin)
+    is_valid, error_msg = await validate_operating_hours(start_time, end_time, has_admin_role)
     if not is_valid:
         raise ValueError(error_msg)
     
     # Validate booking duration (non-admin only)
-    is_valid, error_msg = await validate_booking_duration(start_time, end_time, is_admin)
+    is_valid, error_msg = await validate_booking_duration(start_time, end_time, has_admin_role)
     if not is_valid:
         raise ValueError(error_msg)
     
@@ -246,7 +247,7 @@ async def create_booking(
 async def publish_booking(
     booking_id: str,
     user_id: ObjectId,
-    is_admin: bool = False
+    has_admin_role: bool = False
 ) -> Booking:
     """
     Publish a draft booking and send notification to Telegram group.
@@ -272,7 +273,7 @@ async def publish_booking(
         raise ValueError("Booking sudah dipublish")
     
     # Check ownership or admin
-    if booking.user_id != user_id and not is_admin:
+    if booking.user_id != user_id and not has_admin_role:
         raise ValueError("Anda tidak memiliki akses untuk mempublish booking ini")
     
     # Mark as published
@@ -321,7 +322,7 @@ async def update_booking(
     description: Optional[str] = None,
     start_time: Optional[datetime] = None,
     end_time: Optional[datetime] = None,
-    is_admin: bool = False
+    has_admin_role: bool = False
 ) -> Booking:
     """
     Update an existing booking with validation.
@@ -354,7 +355,7 @@ async def update_booking(
     )
     
     # Check ownership or admin
-    if booking.user_id != user_id and not is_admin:
+    if booking.user_id != user_id and not has_admin_role:
         raise ValueError("Anda tidak memiliki akses untuk mengubah booking ini")
     
     # Get user info for admin check
@@ -396,12 +397,20 @@ async def update_booking(
         new_end = end_time if end_time else booking.end_time
         
         # Validate operating hours (non-admin only)
-        is_valid, error_msg = await validate_operating_hours(new_start, new_end, user.is_admin if user else is_admin)
+        is_valid, error_msg = await validate_operating_hours(
+            new_start,
+            new_end,
+            user_has_admin_role(user) if user else has_admin_role
+        )
         if not is_valid:
             raise ValueError(error_msg)
         
         # Validate booking duration (non-admin only)
-        is_valid, error_msg = await validate_booking_duration(new_start, new_end, user.is_admin if user else is_admin)
+        is_valid, error_msg = await validate_booking_duration(
+            new_start,
+            new_end,
+            user_has_admin_role(user) if user else has_admin_role
+        )
         if not is_valid:
             raise ValueError(error_msg)
         
@@ -454,7 +463,7 @@ async def update_booking(
 async def cancel_booking(
     booking_id: str,
     user_id: ObjectId,
-    is_admin: bool = False
+    has_admin_role: bool = False
 ) -> Booking:
     """
     Cancel a booking (keeps the record in database).
@@ -477,7 +486,7 @@ async def cancel_booking(
         raise ValueError("Booking sudah dibatalkan")
     
     # Check ownership or admin
-    if booking.user_id != user_id and not is_admin:
+    if booking.user_id != user_id and not has_admin_role:
         raise ValueError("Anda tidak memiliki akses untuk membatalkan booking ini")
     
     # Cancel booking
@@ -510,7 +519,7 @@ async def cancel_booking(
 async def delete_booking(
     booking_id: str,
     user_id: ObjectId,
-    is_admin: bool = False
+    has_admin_role: bool = False
 ) -> dict:
     """
     Permanently delete a booking from database.
@@ -530,7 +539,7 @@ async def delete_booking(
         raise ValueError("Booking tidak ditemukan")
     
     # Check ownership or admin
-    if booking.user_id != user_id and not is_admin:
+    if booking.user_id != user_id and not has_admin_role:
         raise ValueError("Anda tidak memiliki akses untuk menghapus booking ini")
     
     # Delete booking history records first

@@ -8,11 +8,12 @@ import yaml
 
 class Settings(BaseSettings):
     # App
-    APP_ENV: str = "production"  # Default to production for Vercel
+    APP_ENV: str = "development"  # Default to development for local development
     SECRET_KEY: Optional[str] = None
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRE_MINUTES: int = 10080  # 7 days
     FRONTEND_URL: str = "https://booking-meeting-flax.vercel.app"  # Production frontend URL
+    PREFIX_NAME: str = "/api/v1"  # API prefix
 
     # Timezone
     TIMEZONE: str = "Asia/Jakarta"  # Default timezone for the application
@@ -34,11 +35,12 @@ class Settings(BaseSettings):
     # External App Integration (e.g., Katalis)
     # External apps use the same SECRET_KEY for JWT encoding/decoding
     KATALIS_PRODUCER: str = "katalis"  # Producer name for external app
+    BASE_URL_KATALIS: Optional[str] = None  # Base URL for Katalis API
 
     @validator('SECRET_KEY', 'BOT_TOKEN', 'ADMIN_TELEGRAM_ID', pre=True, always=True)
     def validate_required_in_production(cls, v, field, values):
         app_env = values.get('APP_ENV', 'production')
-        if app_env == "production" and v is None:
+        if app_env in ['production', 'staging'] and v is None:
             raise ValueError(f'{field.name} is required in production environment')
         return v
 
@@ -63,5 +65,9 @@ def load_settings_from_consul():
 
 
 # Load settings from Consul and create Settings instance
-consul_settings = load_settings_from_consul()
-settings = Settings(**consul_settings)
+if Settings().APP_ENV in ['production', 'staging']:
+    consul_settings = load_settings_from_consul()
+    settings = Settings(**consul_settings)
+else:
+    # For development, use default values
+    settings = Settings()
