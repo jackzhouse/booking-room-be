@@ -5,10 +5,11 @@ import consul
 
 import yaml
 
+ENVIRONMENT = "staging"
 
 class Settings(BaseSettings):
     # App
-    APP_ENV: str = "development"  # Default to development for local development
+    APP_ENV: str = ENVIRONMENT  # Default to staging environment
     SECRET_KEY: Optional[str] = None
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRE_MINUTES: int = 10080  # 7 days
@@ -65,7 +66,7 @@ def load_settings_from_consul():
 
 
 # Load settings from Consul and create Settings instance
-if Settings().APP_ENV in ['production', 'staging']:
+if ENVIRONMENT in ['production', 'staging']:
     consul_settings = load_settings_from_consul()
     settings = Settings(**consul_settings)
 else:
