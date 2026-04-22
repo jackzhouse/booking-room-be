@@ -246,13 +246,17 @@ async def notify_new_booking(booking: Booking):
     await send_telegram_message(group_id, message)
 
 
-async def notify_booking_updated(booking: Booking, old_data: dict):
+async def notify_booking_updated(
+    booking: Booking,
+    old_data: dict,
+    target_group_id: Optional[int] = None
+):
     """
     Send notification for booking update to Telegram group.
     Uses telegram_group_id from booking object.
     """
-    # Use telegram_group_id from booking (snapshot)
-    group_id = booking.telegram_group_id
+    # Use explicit target group if provided, otherwise fallback to booking snapshot.
+    group_id = target_group_id if target_group_id is not None else booking.telegram_group_id
     
     # Format username with @ tag if available
     # For external users: use telegram_username if provided, otherwise use full_name
@@ -282,13 +286,13 @@ async def notify_booking_updated(booking: Booking, old_data: dict):
     await send_telegram_message(group_id, message)
 
 
-async def notify_booking_cancelled(booking: Booking):
+async def notify_booking_cancelled(booking: Booking, target_group_id: Optional[int] = None):
     """
     Send notification for booking cancellation to Telegram group.
     Uses telegram_group_id from booking object.
     """
-    # Use telegram_group_id from booking (snapshot)
-    group_id = booking.telegram_group_id
+    # Use explicit target group if provided, otherwise fallback to booking snapshot.
+    group_id = target_group_id if target_group_id is not None else booking.telegram_group_id
     
     # Format username with @ tag if available
     # For external users: use telegram_username if provided, otherwise use full_name

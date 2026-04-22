@@ -76,6 +76,24 @@ def format_text_with_links(text: Optional[str]) -> Optional[str]:
     return formatted_text
 
 
+def get_booking_notification_group_ids(booking: Booking) -> list[int]:
+    """
+    Collect unique Telegram group IDs that should receive booking notifications.
+    """
+    group_ids: set[int] = set()
+
+    if booking.telegram_group_id:
+        group_ids.add(booking.telegram_group_id)
+
+    if booking.verification_group_id:
+        group_ids.add(booking.verification_group_id)
+
+    if booking.has_consumption and booking.consumption_group_id:
+        group_ids.add(booking.consumption_group_id)
+
+    return list(group_ids)
+
+
 async def generate_booking_number() -> str:
     """
     Generate a unique booking number in format BK-XXXXX.
@@ -455,7 +473,8 @@ async def update_booking(
     
     # Send notification only if booking is published (not draft)
     if booking.published:
-        await notify_booking_updated(booking, old_data.dict())
+        for group_id in get_booking_notification_group_ids(booking):
+            await notify_booking_updated(booking, old_data.dict(), target_group_id=group_id)
     
     return booking
 
@@ -510,8 +529,9 @@ async def cancel_booking(
         )
     )
     
-    # Send notification
-    await notify_booking_cancelled(booking)
+    # Send notifications to all related groups.
+    for group_id in get_booking_notification_group_ids(booking):
+        await notify_booking_cancelled(booking, target_group_id=group_id)
     
     return booking
 

@@ -1,6 +1,6 @@
 import asyncio
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from bson import ObjectId
 
 from app.models.setting import Setting
@@ -102,6 +102,11 @@ async def verify_telegram_group(
 
 @router.get("", response_model=TelegramGroupListResponse)
 async def get_telegram_groups_list(
+    is_filter: bool = Query(
+        True,
+        alias="isFilter",
+        description="When true, exclude groups used by default consumption/verification settings."
+    ),
     current_user: User = Depends(get_current_active_user)
 ):
     """
@@ -111,8 +116,11 @@ async def get_telegram_groups_list(
     when creating bookings.
     """
     groups = await get_all_telegram_groups()
-    excluded_group_ids = await get_excluded_group_ids()
-    filtered_groups = [group for group in groups if group.group_id not in excluded_group_ids]
+    filtered_groups = groups
+    if is_filter:
+        excluded_group_ids = await get_excluded_group_ids()
+        filtered_groups = [group for group in groups if group.group_id not in excluded_group_ids]
+
     return TelegramGroupListResponse(
         groups=[convert_group_to_response(group) for group in filtered_groups],
         total=len(filtered_groups)
