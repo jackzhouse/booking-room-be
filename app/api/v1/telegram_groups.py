@@ -1,7 +1,9 @@
+import asyncio
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException, status
 from bson import ObjectId
 
+from app.models.setting import Setting
 from app.models.telegram_group import TelegramGroup
 from app.schemas.telegram_group import (
     TelegramGroupCreate,
@@ -29,6 +31,27 @@ def convert_group_to_response(group: TelegramGroup) -> TelegramGroupResponse:
     if "_id" in group_dict and group_dict["_id"] is not None:
         group_dict["_id"] = str(group_dict["_id"])
     return TelegramGroupResponse(**group_dict)
+
+
+async def get_excluded_group_ids() -> set[int]:
+    """
+    Get Telegram group IDs that should be hidden from the groups list.
+    """
+    consumption_setting, verification_setting = await asyncio.gather(
+        Setting.find_one(Setting.key == "default_consumption_group_id"),
+        Setting.find_one(Setting.key == "default_verification_group_id"),
+    )
+
+    excluded_ids: set[int] = set()
+    for setting in [consumption_setting, verification_setting]:
+        if not setting or not setting.value:
+            continue
+        try:
+            excluded_ids.add(int(setting.value))
+        except (TypeError, ValueError):
+            # Ignore invalid setting values to avoid breaking group listing.
+            continue
+    return excluded_ids
 
 
 @router.get("/{group_id}/verify", status_code=status.HTTP_200_OK)
@@ -88,9 +111,11 @@ async def get_telegram_groups_list(
     when creating bookings.
     """
     groups = await get_all_telegram_groups()
+    excluded_group_ids = await get_excluded_group_ids()
+    filtered_groups = [group for group in groups if group.group_id not in excluded_group_ids]
     return TelegramGroupListResponse(
-        groups=[convert_group_to_response(group) for group in groups],
-        total=len(groups)
+        groups=[convert_group_to_response(group) for group in filtered_groups],
+        total=len(filtered_groups)
     )
 
 
