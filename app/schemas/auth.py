@@ -99,8 +99,11 @@ class AuthCodeUserData(BaseModel):
     first_name: str
     last_name: Optional[str] = None
     photo_url: Optional[str] = None
-    role: Optional[RoleEnum] = None
+    is_admin: bool = Field(default=False, serialization_alias="isAdmin")
     is_active: bool = True
+
+    class Config:
+        populate_by_name = True
 
 class AuthCodeVerifyData(BaseModel):
     """Data schema for auth code verification"""

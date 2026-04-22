@@ -323,7 +323,7 @@ async def verify_auth_code(code: str = Query(..., description="6-digit authentic
                 first_name=first_name,
                 last_name=last_name,
                 photo_url=user.avatar_url,
-                role=user.role,
+                is_admin=user_has_admin_role(user),
                 is_active=user.is_active
             ),
             token=access_token
@@ -399,7 +399,7 @@ async def verify_code_with_telegram(
                 first_name=first_name,
                 last_name=last_name,
                 photo_url=user.avatar_url,
-                role=user.role,
+                is_admin=user_has_admin_role(user),
                 is_active=user.is_active
             ),
         token=access_token
