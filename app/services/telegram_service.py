@@ -222,10 +222,10 @@ async def notify_new_booking(booking: Booking):
     # Format username with @ tag if available
     # For external users: use telegram_username if provided, otherwise use full_name
     # For Telegram users: use username
-    if booking.user_snapshot.external_user_id:
+    if booking.user_snapshot:
         # External user from Katalis app
-        username_display = booking.user_snapshot.telegram_username if booking.user_snapshot.telegram_username else booking.user_snapshot.full_name
-    else:
+    #     username_display = booking.user_snapshot.telegram_username if booking.user_snapshot.telegram_username else booking.user_snapshot.full_name
+    # else:
         # Telegram user
         username_display = booking.user_snapshot.username if booking.user_snapshot.username else booking.user_snapshot.full_name
     
