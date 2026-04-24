@@ -7,10 +7,10 @@ from bson import ObjectId
 
 class UserSnapshot(BaseModel):
     """Snapshot of user data at booking time"""
-    full_name: str
+    full_name: str = None
     username: Optional[str] = None
     division: Optional[str] = None
-    telegram_id: int
+    telegram_id: int = None
 
 
 class RoomSnapshot(BaseModel):
