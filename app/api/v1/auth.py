@@ -92,7 +92,8 @@ async def create_or_update_user(telegram_user_data: Dict[str, Any]) -> User:
         elif user.role is None:
             user.role = RoleEnum.STUDENT
         
-        await user.save()
+        saved_user = await user.save()
+        user = saved_user or user
     else:
         # Create new user
         role = RoleEnum.SUPER_ADMIN if telegram_id == settings.ADMIN_TELEGRAM_ID else RoleEnum.STUDENT
@@ -106,9 +107,20 @@ async def create_or_update_user(telegram_user_data: Dict[str, Any]) -> User:
             is_active=True,
             last_login_at=datetime.now(settings.timezone)
         )
-        await user.insert()
+        inserted_user = await user.insert()
+        user = inserted_user or user
     
     return user
+
+
+def map_user_response(user: User) -> UserResponse:
+    """
+    Map User document to UserResponse with guaranteed _id.
+    """
+    user_payload = user.dict(by_alias=True)
+    if getattr(user, "id", None) is not None:
+        user_payload["_id"] = str(user.id)
+    return UserResponse(**user_payload)
 
 
 def resolve_external_role(role: Optional[str], roles: Optional[list[str]]) -> Optional[RoleEnum]:
@@ -198,7 +210,7 @@ async def telegram_login(request: TelegramLoginRequest):
     return TokenResponse(
         access_token=access_token,
         login_source="telegram",
-        user=UserResponse(**user.dict(by_alias=True))
+        user=map_user_response(user)
     )
 
 
@@ -227,7 +239,7 @@ async def telegram_mini_app_login(request: TelegramMiniAppRequest):
     return TokenResponse(
         access_token=access_token,
         login_source="telegram_mini_app",
-        user=UserResponse(**user.dict(by_alias=True))
+        user=map_user_response(user)
     )
 
 
@@ -434,7 +446,7 @@ async def verify_external_token_endpoint(request: ExternalTokenVerifyRequest):
         return ExternalTokenVerifyResponse(
             success=True,
             registered=True,
-            user=UserResponse(**user.dict(by_alias=True))
+            user=map_user_response(user)
         )
     else:
         # User not registered, return info for registration
@@ -494,7 +506,7 @@ async def register_external_user_endpoint(request: ExternalRegisterRequest):
     return ExternalRegisterResponse(
         success=True,
         message="User registered successfully",
-        user=UserResponse(**user.dict(by_alias=True))
+        user=map_user_response(user)
     )
 
 
@@ -594,7 +606,7 @@ async def login_with_external_user_data(request: TokenLoginRequest):
         access_token=access_token,
         login_source="external_user_data",
         expires_in=expires_in,
-        user=UserResponse(**user.dict(by_alias=True))
+        user=map_user_response(user)
     )
 
 
@@ -603,7 +615,7 @@ async def get_current_user_profile(current_user: User = Depends(get_current_user
     """
     Get current user information from JWT token.
     """
-    return UserResponse(**current_user.dict(by_alias=True))
+    return map_user_response(current_user)
 
 
 @router.put("/me/profile", response_model=UserResponse)
@@ -619,4 +631,4 @@ async def update_current_user_profile(
         request=request,
         updated_by=str(current_user.id)
     )
-    return UserResponse(**updated_user.dict(by_alias=True))
+    return map_user_response(updated_user)
