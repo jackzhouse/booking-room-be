@@ -340,6 +340,8 @@ async def update_booking(
     description: Optional[str] = None,
     start_time: Optional[datetime] = None,
     end_time: Optional[datetime] = None,
+    consumption_note: Optional[str] = None,
+    consumption_group_id: Optional[int] = None,
     has_admin_role: bool = False
 ) -> Booking:
     """
@@ -382,6 +384,8 @@ async def update_booking(
     # Track if room changed
     room_id_obj = booking.room_id
     room_name = booking.room_snapshot.name
+    meeting_fields_changed = False
+    consumption_fields_changed = False
     
     if room_id:
         room = await Room.get(room_id)
@@ -397,17 +401,37 @@ async def update_booking(
     update_data = {}
     
     if title is not None:
-        update_data["title"] = title.title() if title else title
+        formatted_title = title.title() if title else title
+        update_data["title"] = formatted_title
+        if formatted_title != booking.title:
+            meeting_fields_changed = True
     
     if division is not None:
         update_data["division"] = division
+        if division != booking.division:
+            meeting_fields_changed = True
     
     if description is not None:
-        update_data["description"] = format_text_with_links(description)
+        formatted_description = format_text_with_links(description)
+        update_data["description"] = formatted_description
+        if formatted_description != booking.description:
+            meeting_fields_changed = True
     
     if room_id is not None:
         update_data["room_id"] = room_id_obj
         update_data["room_snapshot"] = RoomSnapshot(name=room_name)
+        if room_id_obj != booking.room_id:
+            meeting_fields_changed = True
+
+    if consumption_group_id is not None:
+        if consumption_group_id != booking.consumption_group_id:
+            consumption_fields_changed = True
+        update_data["consumption_group_id"] = consumption_group_id
+    
+    if consumption_note is not None:
+        if consumption_note != booking.consumption_note:
+            consumption_fields_changed = True
+        update_data["consumption_note"] = consumption_note
     
     # Time validation if times are being updated
     if start_time or end_time:
@@ -446,6 +470,8 @@ async def update_booking(
         
         update_data["start_time"] = new_start
         update_data["end_time"] = new_end
+        if new_start != booking.start_time or new_end != booking.end_time:
+            meeting_fields_changed = True
     
     # Apply updates
     for field, value in update_data.items():
@@ -473,8 +499,22 @@ async def update_booking(
     
     # Send notification only if booking is published (not draft)
     if booking.published:
-        for group_id in get_booking_notification_group_ids(booking):
-            await notify_booking_updated(booking, old_data.dict(), target_group_id=group_id)
+        meeting_notification_group_ids: set[int] = set()
+        if booking.telegram_group_id:
+            meeting_notification_group_ids.add(booking.telegram_group_id)
+        if booking.verification_group_id:
+            meeting_notification_group_ids.add(booking.verification_group_id)
+        
+        if meeting_fields_changed:
+            for group_id in meeting_notification_group_ids:
+                await notify_booking_updated(booking, old_data.dict(), target_group_id=group_id)
+        
+        if consumption_fields_changed and booking.has_consumption and booking.consumption_group_id:
+            await notify_consumption_group(booking)
+
+        if not meeting_fields_changed and not consumption_fields_changed:
+            for group_id in meeting_notification_group_ids:
+                await notify_booking_updated(booking, old_data.dict(), target_group_id=group_id)
     
     return booking
 
