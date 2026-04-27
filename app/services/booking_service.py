@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List
 import re
 from bson import ObjectId
@@ -92,6 +92,21 @@ def get_booking_notification_group_ids(booking: Booking) -> list[int]:
         group_ids.add(booking.consumption_group_id)
 
     return list(group_ids)
+
+
+def normalize_utc_datetime(dt: datetime) -> datetime:
+    """
+    Normalize datetime to UTC for safe equality comparison.
+    MongoDB datetimes may be timezone-naive UTC.
+    """
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
+
+
+def datetimes_equal(a: datetime, b: datetime) -> bool:
+    """Compare two datetimes by instant, regardless of timezone representation."""
+    return normalize_utc_datetime(a) == normalize_utc_datetime(b)
 
 
 async def generate_booking_number() -> str:
@@ -470,7 +485,7 @@ async def update_booking(
         
         update_data["start_time"] = new_start
         update_data["end_time"] = new_end
-        if new_start != booking.start_time or new_end != booking.end_time:
+        if not datetimes_equal(new_start, booking.start_time) or not datetimes_equal(new_end, booking.end_time):
             meeting_fields_changed = True
     
     # Apply updates
