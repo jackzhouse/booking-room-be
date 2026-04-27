@@ -40,6 +40,7 @@ class BookingUpdate(BaseModel):
     description: Optional[str] = None
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
+    has_consumption: Optional[bool] = None
     consumption_note: Optional[str] = None
     consumption_group_id: Optional[int] = None
 

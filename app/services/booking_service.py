@@ -355,6 +355,7 @@ async def update_booking(
     description: Optional[str] = None,
     start_time: Optional[datetime] = None,
     end_time: Optional[datetime] = None,
+    has_consumption: Optional[bool] = None,
     consumption_note: Optional[str] = None,
     consumption_group_id: Optional[int] = None,
     has_admin_role: bool = False
@@ -437,6 +438,11 @@ async def update_booking(
         update_data["room_snapshot"] = RoomSnapshot(name=room_name)
         if room_id_obj != booking.room_id:
             meeting_fields_changed = True
+
+    if has_consumption is not None:
+        if has_consumption != booking.has_consumption:
+            consumption_fields_changed = True
+        update_data["has_consumption"] = has_consumption
 
     if consumption_group_id is not None:
         if consumption_group_id != booking.consumption_group_id:

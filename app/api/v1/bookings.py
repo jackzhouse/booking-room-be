@@ -241,6 +241,7 @@ async def update_existing_booking(
             description=booking_data.description,
             start_time=booking_data.start_time,
             end_time=booking_data.end_time,
+            has_consumption=booking_data.has_consumption,
             consumption_note=booking_data.consumption_note,
             consumption_group_id=booking_data.consumption_group_id,
             has_admin_role=user_has_admin_role(current_user)
