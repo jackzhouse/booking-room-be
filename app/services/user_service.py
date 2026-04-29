@@ -154,6 +154,8 @@ class UserRepository:
             user.division = request.division
         if request.avatar_url:
             user.avatar_url = request.avatar_url
+        if request.telegram_username:
+            user.telegram_username = request.telegram_username
         
         user.updated_at = datetime.now(timezone.utc)
         user.updated_by = updated_by

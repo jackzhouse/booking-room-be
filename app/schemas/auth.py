@@ -243,6 +243,10 @@ class UserUpdateRequest(BaseModel):
     gender: Optional[GenderEnum] = None
     division: Optional[str] = None
     avatar_url: Optional[str] = None
+    telegram_username: Optional[str] = Field(default=None, alias="telegramUsername")
+
+    class Config:
+        populate_by_name = True
 
 
 class PasswordChangeRequest(BaseModel):
