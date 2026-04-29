@@ -120,6 +120,8 @@ def map_user_response(user: User) -> UserResponse:
     user_payload = user.dict(by_alias=True)
     if getattr(user, "id", None) is not None:
         user_payload["_id"] = str(user.id)
+    if user_payload.get("account_id") is not None:
+        user_payload["account_id"] = str(user_payload["account_id"])
     return UserResponse(**user_payload)
 
 
@@ -432,8 +434,10 @@ async def verify_external_token_endpoint(request: ExternalTokenVerifyRequest):
             detail="Invalid accountId format. Expected Mongo ObjectId string."
         )
     
+    account_object_id = ObjectId(request.account_id)
+
     # Check by account_id first, then fallback to legacy external_user_id.
-    user = await User.find_one(User.account_id == request.account_id)
+    user = await User.find_one(User.account_id == account_object_id)
     if not user:
         user = await User.find_one(User.external_user_id == request.account_id)
 
@@ -468,10 +472,12 @@ async def register_external_user_endpoint(request: ExternalRegisterRequest):
             detail="Invalid accountId format. Expected Mongo ObjectId string."
         )
     
+    account_object_id = ObjectId(request.account_id)
+
     resolved_role = resolve_external_role(request.role, request.roles)
 
     # Check if user already exists by account_id or legacy external_user_id
-    existing_user = await User.find_one(User.account_id == request.account_id)
+    existing_user = await User.find_one(User.account_id == account_object_id)
     if not existing_user:
         existing_user = await User.find_one(User.external_user_id == request.account_id)
 
@@ -484,7 +490,7 @@ async def register_external_user_endpoint(request: ExternalRegisterRequest):
     # Create new user
     user = User(
         telegram_id=None,  # null for external users
-        account_id=request.account_id,
+        account_id=account_object_id,
         full_name=request.full_name,
         division=request.division,
         email=request.email,
@@ -523,7 +529,9 @@ async def login_with_external_user_data(request: TokenLoginRequest):
             detail="Invalid accountId format. Expected Mongo ObjectId string."
         )
 
-    user = await User.find_one(User.account_id == request.account_id)
+    account_object_id = ObjectId(request.account_id)
+
+    user = await User.find_one(User.account_id == account_object_id)
     if not user:
         # Backward compatibility for old records that stored accountId in external_user_id.
         user = await User.find_one(User.external_user_id == request.account_id)
@@ -535,7 +543,7 @@ async def login_with_external_user_data(request: TokenLoginRequest):
         fallback_name = request.full_name or request.username or f"External User {request.account_id[-6:]}"
         user = User(
             telegram_id=None,
-            account_id=request.account_id,
+            account_id=account_object_id,
             external_user_id=request.user_id,
             full_name=fallback_name,
             username=request.username,
@@ -553,7 +561,7 @@ async def login_with_external_user_data(request: TokenLoginRequest):
         )
         await user.insert()
     else:
-        user.account_id = request.account_id
+        user.account_id = account_object_id
         if request.user_id:
             user.external_user_id = request.user_id
         if request.full_name:
@@ -592,7 +600,7 @@ async def login_with_external_user_data(request: TokenLoginRequest):
         "roles": [user.role.value] if user.role else [],
         "company_id": user.company_id,
         "external_user_id": user.external_user_id,
-        "account_id": user.account_id,
+        "account_id": str(user.account_id) if user.account_id else None,
         "producer": user.external_producer,
         "login_source": "external_user_data"
     }

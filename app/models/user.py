@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from typing import Optional
-from beanie import Document, Indexed
+from beanie import Document, Indexed, PydanticObjectId
 from pydantic import Field, EmailStr
 
 from app.core.enums import RoleEnum, GenderEnum, UserTypeEnum
@@ -11,7 +11,7 @@ class User(Document):
     
     # Identity fields
     telegram_id: Optional[Indexed(int, unique=True)] = None
-    account_id: Optional[str] = None  # External account ObjectId (e.g., accountId)
+    account_id: Optional[PydanticObjectId] = None  # External account ObjectId (e.g., accountId)
     external_user_id: Optional[str] = None
     username: Optional[str] = None
     
