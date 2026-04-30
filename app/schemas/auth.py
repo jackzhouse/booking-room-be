@@ -147,12 +147,12 @@ class ExternalRegisterRequest(BaseModel):
     division: Optional[str] = None
     email: Optional[str] = None
     username: Optional[str] = None
-    telegram_username: Optional[str] = Field(default=None, alias="telegramUsername")
-    company_id: Optional[str] = Field(default=None, alias="companyId")
+    telegram_username: Optional[str] = Field(default=None)
+    company_id: Optional[str] = Field(default=None)
     producer: Optional[str] = None
     role: Optional[str] = None
     roles: Optional[List[str]] = None
-    user_id: Optional[str] = Field(default=None, alias="userId")
+    user_id: Optional[str] = Field(default=None)
     
     class Config:
         extra = "allow"
@@ -171,16 +171,16 @@ class ExternalRegisterResponse(BaseModel):
 class TokenLoginRequest(BaseModel):
     """Request schema for external user-data login"""
     account_id: str = Field(alias="accountId")
-    full_name: Optional[str] = Field(default=None, alias="fullName")
+    full_name: Optional[str] = Field(default=None)
     username: Optional[str] = None
     email: Optional[str] = None
     division: Optional[str] = None
-    telegram_username: Optional[str] = Field(default=None, alias="telegramUsername")
-    company_id: Optional[str] = Field(default=None, alias="companyId")
+    telegram_username: Optional[str] = Field(default=None)
+    company_id: Optional[str] = Field(default=None)
     producer: Optional[str] = None
     role: Optional[str] = None
     roles: Optional[List[str]] = None
-    user_id: Optional[str] = Field(default=None, alias="userId")
+    user_id: Optional[str] = Field(default=None)
 
     class Config:
         extra = "allow"
@@ -243,7 +243,7 @@ class UserUpdateRequest(BaseModel):
     gender: Optional[GenderEnum] = None
     division: Optional[str] = None
     avatar_url: Optional[str] = None
-    telegram_username: Optional[str] = Field(default=None, alias="telegramUsername")
+    telegram_username: Optional[str] = Field(default=None)
 
     class Config:
         populate_by_name = True
