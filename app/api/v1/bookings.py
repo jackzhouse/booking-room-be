@@ -139,13 +139,6 @@ async def get_booking(
             detail="Booking not found"
         )
     
-    # Check ownership or admin
-    if booking.user_id != current_user.id and not user_has_admin_role(current_user):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You don't have permission to view this booking"
-        )
-    
     return convert_booking_to_response(booking)
 
 
