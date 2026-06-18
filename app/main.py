@@ -9,7 +9,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from app.core.config import settings
 from app.core.database import connect_to_mongo, close_mongo_connection, init_beanie_models
 from app.api.v1 import auth, bookings, rooms, admin, telegram_groups
-from app.bot.webhook import set_webhook, delete_webhook, handle_webhook_update
+from app.bot.webhook import refresh_webhook_job, delete_webhook, handle_webhook_update
 from app.services.scheduler_service import check_and_notify_ended_bookings
 from telegram import Update
 from fastapi import Request
@@ -69,19 +69,20 @@ async def lifespan(app: FastAPI):
         name='Send cleanup notifications for ended bookings',
         replace_existing=True
     )
+    scheduler.add_job(
+        refresh_webhook_job,
+        'interval',
+        hours=1,
+        id='telegram_webhook_refresh',
+        name='Refresh Telegram webhook every hour',
+        replace_existing=True
+    )
     scheduler.start()
     print("✅ Scheduler started: Will check for ended bookings every 5 minutes")
-    
-    # Set Telegram webhook (for Vercel deployment)
-    try:
-        await set_webhook()
-        print("✅ Telegram webhook configured successfully")
-    except Exception as e:
-        print(f"⚠️  Warning: Could not set Telegram webhook: {str(e)}")
-        print("   Bot features will be limited until a valid webhook URL is provided.")
-        print("   This is not critical - the application will continue running.")
-        print("   You can manually set the webhook later using the Telegram API.")
-        # Don't raise exception - allow app to continue even if webhook setup fails
+    print("✅ Scheduler started: Will refresh Telegram webhook every 1 hour")
+
+    # Set Telegram webhook immediately on startup
+    await refresh_webhook_job()
     
     yield
     
