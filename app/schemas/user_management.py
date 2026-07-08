@@ -6,9 +6,14 @@ from pydantic import BaseModel, Field
 class UserManagementResponse(BaseModel):
     """Response schema for user in user management"""
     id: str
-    telegram_id: int
+    telegram_id: Optional[int] = None
     full_name: str
     username: Optional[str] = None
+    external_user_id: Optional[str] = None
+    employee_no: Optional[str] = None
+    department_id: Optional[str] = None
+    department_name: Optional[str] = None
+    job_title: Optional[str] = None
     is_admin: bool
     is_active: bool
     avatar: Optional[str] = None  # Mapped from avatar_url
@@ -51,3 +56,12 @@ class ErrorDetail(BaseModel):
 class ErrorResponse(BaseModel):
     """Error response schema"""
     error: ErrorDetail
+
+
+class SyncTaskResponse(BaseModel):
+    task_id: str
+    task_type: str
+    status: str
+    progress: int
+    message: str
+    metadata: dict = Field(default_factory=dict)

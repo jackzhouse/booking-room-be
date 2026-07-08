@@ -1,13 +1,16 @@
 from typing import List, Optional
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status, Query
+from fastapi.security import HTTPAuthorizationCredentials
 from pydantic import BaseModel
 
 from app.models.booking import Booking
 from app.models.user import User
 from app.models.room import Room
 from app.models.setting import Setting
+from app.models.sync_task import SyncTask
+from app.models.external_division import ExternalDivision
 from app.schemas.admin import SettingResponse, SettingUpdate
 from app.schemas.dashboard import DashboardStats
 from app.schemas.user_management import (
@@ -17,17 +20,28 @@ from app.schemas.user_management import (
     UpdateStatusRequest,
     UpdateAvatarRequest,
     SuccessResponse,
-    ErrorResponse
+    ErrorResponse,
+    SyncTaskResponse
 )
 from app.services.booking_service import cancel_booking
 from app.services.dashboard_service import get_dashboard_statistics
 from app.services.scheduler_service import get_pending_cleanup_count, get_recent_ended_bookings
 from app.core.config import settings
-from app.api.deps import get_current_admin_user
+from app.api.deps import get_current_admin_user, security
 from app.schemas.booking import BookingResponse
 from app.schemas.room import RoomResponse
 from app.schemas.auth import UserResponse
 from app.services.telegram_service import test_notification
+from app.services.katalis_service import (
+    ExternalAuthError,
+    extract_company_id,
+    extract_external_user_id,
+    get_display_name,
+    get_nested_id,
+    get_nested_name,
+    katalis_service,
+    now_utc,
+)
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -36,7 +50,7 @@ def convert_booking_to_response(booking: Booking) -> BookingResponse:
     """
     Convert a Booking model to BookingResponse by converting ObjectId fields to strings.
     """
-    booking_dict = booking.dict(by_alias=True)
+    booking_dict = booking.model_dump(by_alias=True)
     # Convert ObjectId fields to strings
     if "_id" in booking_dict and booking_dict["_id"] is not None:
         booking_dict["_id"] = str(booking_dict["_id"])
@@ -53,7 +67,7 @@ def convert_room_to_response(room: Room) -> RoomResponse:
     """
     Convert a Room model to RoomResponse by converting ObjectId fields to strings.
     """
-    room_dict = room.dict(by_alias=True)
+    room_dict = room.model_dump(by_alias=True)
     if "_id" in room_dict and room_dict["_id"] is not None:
         room_dict["_id"] = str(room_dict["_id"])
     return RoomResponse(**room_dict)
@@ -63,7 +77,7 @@ def convert_user_to_response(user: User) -> UserResponse:
     """
     Convert a User model to UserResponse by converting ObjectId fields to strings.
     """
-    user_dict = user.dict(by_alias=True)
+    user_dict = user.model_dump(by_alias=True)
     if "_id" in user_dict and user_dict["_id"] is not None:
         user_dict["_id"] = str(user_dict["_id"])
     return UserResponse(**user_dict)
@@ -74,17 +88,176 @@ def convert_user_to_management_response(user: User) -> UserManagementResponse:
     Convert a User model to UserManagementResponse with proper field mapping.
     Maps avatar_url to avatar.
     """
-    user_dict = user.dict(by_alias=True)
+    user_dict = user.model_dump(by_alias=True)
     return UserManagementResponse(
         id=str(user_dict.get("_id", "")),
-        telegram_id=user_dict.get("telegram_id", 0),
+        telegram_id=user_dict.get("telegram_id"),
         full_name=user_dict.get("full_name", ""),
         username=user_dict.get("username"),
+        external_user_id=user_dict.get("external_user_id"),
+        employee_no=user_dict.get("employee_no"),
+        department_id=user_dict.get("department_id"),
+        department_name=user_dict.get("department_name"),
+        job_title=user_dict.get("job_title"),
         is_admin=user_dict.get("is_admin", False),
         is_active=user_dict.get("is_active", True),
         avatar=user_dict.get("avatar_url"),  # Map avatar_url to avatar
         created_at=user_dict.get("created_at", datetime.now(timezone.utc))
     )
+
+
+def convert_task_to_response(task: SyncTask) -> SyncTaskResponse:
+    return SyncTaskResponse(
+        task_id=str(task.id),
+        task_type=task.task_type,
+        status=task.status,
+        progress=task.progress,
+        message=task.message,
+        metadata=task.metadata,
+    )
+
+
+def clean_email(value: Optional[str]) -> Optional[str]:
+    if not value:
+        return None
+    value = value.strip()
+    if "@" not in value:
+        return None
+    return value
+
+
+def parse_active_flag(value, fallback: bool) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() not in {"false", "0", "inactive", "nonaktif"}
+    if value is None:
+        return fallback
+    return bool(value)
+
+
+async def sync_external_divisions(token: str) -> int:
+    divisions = await katalis_service.fetch_divisions(token)
+    synced = 0
+
+    for division in divisions:
+        external_id = division.get("id") or division.get("_id")
+        if not external_id:
+            continue
+
+        existing = await ExternalDivision.find_one(ExternalDivision.external_id == str(external_id))
+        if not existing:
+            existing = ExternalDivision(external_id=str(external_id), name=division.get("name") or "-")
+
+        existing.name = division.get("name") or existing.name
+        existing.description = division.get("description")
+        existing.company_id = division.get("companyId") or division.get("company_id")
+        existing.last_synced_at = now_utc()
+        await existing.save()
+        synced += 1
+
+    return synced
+
+
+async def sync_external_employees(token: str) -> int:
+    employees = await katalis_service.fetch_employees(token)
+    synced = 0
+
+    for employee in employees:
+        external_user_id = extract_external_user_id(employee)
+        if not external_user_id:
+            continue
+
+        existing = await User.find_one(User.external_user_id == external_user_id)
+        if not existing:
+            existing = User(
+                telegram_id=None,
+                full_name=get_display_name(employee),
+                external_user_id=external_user_id,
+                is_admin=False,
+                is_active=True,
+            )
+
+        division_name = get_nested_name(employee, "division") or employee.get("divisionName")
+        division_id = get_nested_id(employee, "division") or employee.get("divisionId")
+        position_name = get_nested_name(employee, "position") or employee.get("positionName")
+        manager = employee.get("manager")
+        manager_external_id = None
+        if isinstance(manager, dict):
+            manager_external_id = extract_external_user_id(manager)
+
+        existing.full_name = get_display_name(employee)
+        existing.username = employee.get("username") or employee.get("userName") or existing.username
+        existing.email = clean_email(employee.get("email"))
+        existing.avatar_url = employee.get("photoUrl") or employee.get("avatar_url") or existing.avatar_url
+        existing.external_company_id = extract_company_id(employee)
+        existing.external_producer = employee.get("producer") or employee.get("lastService") or settings.KATALIS_PRODUCER
+        existing.attendance_user_id = employee.get("userId") or employee.get("attendanceUserId")
+        existing.employee_no = employee.get("identityNumber") or employee.get("employeeNo") or employee.get("employee_no")
+        existing.department_id = division_id
+        existing.department_name = division_name
+        existing.division = division_name
+        existing.job_title = position_name
+        existing.manager_external_id = manager_external_id
+        existing.is_active = parse_active_flag(employee.get("active"), existing.is_active)
+        existing.last_synced_at = now_utc()
+        existing.updated_at = now_utc()
+        await existing.save()
+        synced += 1
+
+    return synced
+
+
+async def run_employee_sync(task_id: str, token: str):
+    task = await SyncTask.get(task_id)
+    if not task:
+        return
+
+    try:
+        task.status = "processing"
+        task.progress = 10
+        task.message = "Sinkronisasi divisi"
+        task.updated_at = now_utc()
+        await task.save()
+
+        division_count = await sync_external_divisions(token)
+
+        task.progress = 45
+        task.message = "Sinkronisasi employee"
+        task.metadata = {**task.metadata, "division_count": division_count}
+        task.updated_at = now_utc()
+        await task.save()
+
+        employee_count = await sync_external_employees(token)
+
+        task.status = "completed"
+        task.progress = 100
+        task.message = "Sinkronisasi employee selesai"
+        task.metadata = {**task.metadata, "division_count": division_count, "employee_count": employee_count}
+        task.completed_at = now_utc()
+        task.updated_at = now_utc()
+        await task.save()
+    except ExternalAuthError as exc:
+        task.status = "failed"
+        task.progress = 100
+        task.message = "Sinkronisasi employee gagal"
+        task.metadata = {
+            **task.metadata,
+            "error_type": "ExternalAuthError",
+            "endpoint": exc.endpoint,
+            "status_code": exc.status_code,
+        }
+        task.completed_at = now_utc()
+        task.updated_at = now_utc()
+        await task.save()
+    except Exception as exc:
+        task.status = "failed"
+        task.progress = 100
+        task.message = "Sinkronisasi employee gagal"
+        task.metadata = {**task.metadata, "error_type": exc.__class__.__name__}
+        task.completed_at = now_utc()
+        task.updated_at = now_utc()
+        await task.save()
 
 
 @router.get("/bookings", response_model=List[BookingResponse])
@@ -162,6 +335,46 @@ async def get_all_users(
         )
 
 
+@router.post("/users/sync-employees", response_model=SyncTaskResponse)
+async def start_employee_sync(
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_admin_user),
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+):
+    """
+    Start employee synchronization from external Katalis/Absensi source.
+    """
+    task = SyncTask(
+        metadata={
+            "requested_by": str(current_user.id),
+            "requested_by_name": current_user.full_name,
+            "requested_by_role": "admin" if current_user.is_admin else "user",
+        }
+    )
+    await task.insert()
+
+    background_tasks.add_task(run_employee_sync, str(task.id), credentials.credentials)
+    return convert_task_to_response(task)
+
+
+@router.get("/tasks/{task_id}", response_model=SyncTaskResponse)
+async def get_sync_task(
+    task_id: str,
+    current_user: User = Depends(get_current_admin_user)
+):
+    """
+    Get employee sync task progress.
+    """
+    task = await SyncTask.get(task_id)
+    if not task:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Task not found"
+        )
+
+    return convert_task_to_response(task)
+
+
 @router.patch("/users/{user_id}/admin")
 async def toggle_user_admin_role(
     user_id: str,
@@ -190,7 +403,7 @@ async def toggle_user_admin_role(
         
         # Return success response
         user_response = convert_user_to_management_response(user)
-        return SuccessResponse(success=True, data=user_response.dict())
+        return SuccessResponse(success=True, data=user_response.model_dump())
         
     except HTTPException:
         raise
@@ -229,7 +442,7 @@ async def toggle_user_active_status(
         
         # Return success response
         user_response = convert_user_to_management_response(user)
-        return SuccessResponse(success=True, data=user_response.dict())
+        return SuccessResponse(success=True, data=user_response.model_dump())
         
     except HTTPException:
         raise
@@ -268,7 +481,7 @@ async def update_user_avatar(
         
         # Return success response
         user_response = convert_user_to_management_response(user)
-        return SuccessResponse(success=True, data=user_response.dict())
+        return SuccessResponse(success=True, data=user_response.model_dump())
         
     except HTTPException:
         raise
@@ -366,7 +579,7 @@ async def get_all_settings(
     settings_list = await Setting.find().sort(Setting.key).to_list()
     result = []
     for setting in settings_list:
-        setting_dict = setting.dict(by_alias=True)
+        setting_dict = setting.model_dump(by_alias=True)
         if "_id" in setting_dict and setting_dict["_id"] is not None:
             setting_dict["_id"] = str(setting_dict["_id"])
         if "updated_by" in setting_dict and setting_dict["updated_by"] is not None:
@@ -391,7 +604,7 @@ async def get_setting(
         )
     
     # Convert ObjectId fields to strings for response
-    setting_dict = setting.dict(by_alias=True)
+    setting_dict = setting.model_dump(by_alias=True)
     if "_id" in setting_dict and setting_dict["_id"] is not None:
         setting_dict["_id"] = str(setting_dict["_id"])
     if "updated_by" in setting_dict and setting_dict["updated_by"] is not None:
@@ -426,7 +639,7 @@ async def update_setting(
     await setting.save()
     
     # Convert ObjectId fields to strings for response
-    setting_dict = setting.dict(by_alias=True)
+    setting_dict = setting.model_dump(by_alias=True)
     if "_id" in setting_dict and setting_dict["_id"] is not None:
         setting_dict["_id"] = str(setting_dict["_id"])
     if "updated_by" in setting_dict and setting_dict["updated_by"] is not None:
@@ -496,7 +709,7 @@ async def get_scheduler_status(
         # Convert bookings to response format
         bookings_data = []
         for booking in recent_ended:
-            booking_dict = booking.dict(by_alias=True)
+            booking_dict = booking.model_dump(by_alias=True)
             if "_id" in booking_dict and booking_dict["_id"] is not None:
                 booking_dict["_id"] = str(booking_dict["_id"])
             if "user_id" in booking_dict and booking_dict["user_id"] is not None:

@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class UserSnapshotResponse(BaseModel):
@@ -44,6 +44,8 @@ class BookingUpdate(BaseModel):
 
 class BookingResponse(BaseModel):
     """Response schema for booking data"""
+    model_config = ConfigDict(populate_by_name=True)
+
     id: str = Field(alias="_id")
     booking_number: str
     user_id: str
@@ -68,10 +70,6 @@ class BookingResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     
-    class Config:
-        populate_by_name = True
-
-
 class ConflictResponse(BaseModel):
     """Response schema when booking conflicts occur"""
     detail: str

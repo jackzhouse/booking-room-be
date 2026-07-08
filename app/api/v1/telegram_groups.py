@@ -25,7 +25,7 @@ def convert_group_to_response(group: TelegramGroup) -> TelegramGroupResponse:
     """
     Convert a TelegramGroup model to TelegramGroupResponse by converting ObjectId to string.
     """
-    group_dict = group.dict(by_alias=True)
+    group_dict = group.model_dump(by_alias=True)
     if "_id" in group_dict and group_dict["_id"] is not None:
         group_dict["_id"] = str(group_dict["_id"])
     return TelegramGroupResponse(**group_dict)

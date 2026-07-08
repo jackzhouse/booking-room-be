@@ -1,11 +1,25 @@
 from datetime import datetime, timezone
 from typing import Optional
 from beanie import Document, Indexed
-from pydantic import Field, EmailStr
+from pydantic import ConfigDict, EmailStr, Field
 
 
 class User(Document):
     """User model for Telegram-authenticated users and external app users"""
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+        json_schema_extra={
+            "example": {
+                "telegram_id": 123456789,
+                "full_name": "Budi Santoso",
+                "username": "budisantoso",
+                "avatar_url": "https://...",
+                "division": "Engineering",
+                "is_admin": False,
+                "is_active": True
+            }
+        },
+    )
     
     telegram_id: Optional[Indexed(int, unique=True)] = None  # Unique index for telegram_id, optional for external users
     full_name: str
@@ -17,6 +31,13 @@ class User(Document):
     external_user_id: Optional[str] = None  # User ID from external app (e.g., Katalis)
     external_company_id: Optional[str] = None  # Company ID from external app
     external_producer: Optional[str] = None  # External app producer (e.g., "katalis")
+    attendance_user_id: Optional[str] = None
+    employee_no: Optional[str] = None
+    department_id: Optional[str] = None
+    department_name: Optional[str] = None
+    job_title: Optional[str] = None
+    manager_external_id: Optional[str] = None
+    last_synced_at: Optional[datetime] = None
     is_admin: bool = False
     is_active: bool = True
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -30,19 +51,8 @@ class User(Document):
             "username",
             "is_admin",
             "is_active",
-            "external_user_id"  # Index for external users lookup
+            "external_user_id",  # Index for external users lookup
+            "employee_no",
+            "department_id"
         ]
     
-    class Config:
-        arbitrary_types_allowed = True
-        json_schema_extra = {
-            "example": {
-                "telegram_id": 123456789,
-                "full_name": "Budi Santoso",
-                "username": "budisantoso",
-                "avatar_url": "https://...",
-                "division": "Engineering",
-                "is_admin": False,
-                "is_active": True
-            }
-        }

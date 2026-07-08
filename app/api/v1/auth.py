@@ -1,6 +1,6 @@
 from typing import Dict, Any, Optional
 from datetime import datetime, timezone
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Body
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Body, Header
 from bson import ObjectId
 from urllib.parse import urlencode
 from pydantic import BaseModel
@@ -19,13 +19,22 @@ from app.schemas.auth import (
     AuthCodeVerifyResponse,
     AuthCodeVerifyData,
     AuthCodeUserData,
+    SSOLoginRequest,
     ExternalTokenVerifyRequest,
     ExternalTokenVerifyResponse,
     ExternalRegisterRequest,
     ExternalRegisterResponse
 )
-from app.api.deps import get_user_by_telegram_id
+from app.api.deps import get_current_user, get_user_by_telegram_id
 from app.services.auth_code_service import auth_code_service
+from app.services.katalis_service import (
+    ExternalAuthError,
+    extract_company_id,
+    extract_external_user_id,
+    get_authorization_token,
+    katalis_service,
+    now_utc,
+)
 
 
 class TelegramUserAuth(BaseModel):
@@ -137,7 +146,7 @@ async def telegram_login(request: TelegramLoginRequest):
     
     return TokenResponse(
         access_token=access_token,
-        user=UserResponse(**user.dict(by_alias=True))
+        user=UserResponse(**user.model_dump(by_alias=True))
     )
 
 
@@ -165,7 +174,7 @@ async def telegram_mini_app_login(request: TelegramMiniAppRequest):
     
     return TokenResponse(
         access_token=access_token,
-        user=UserResponse(**user.dict(by_alias=True))
+        user=UserResponse(**user.model_dump(by_alias=True))
     )
 
 
@@ -283,7 +292,7 @@ async def verify_code_with_telegram(
     On subsequent calls to /verify-code, user will be authenticated.
     """
     # Convert to dict
-    telegram_user_data = telegram_user.dict()
+    telegram_user_data = telegram_user.model_dump()
     
     # Verify code exists and is valid
     code_data = await auth_code_service.verify_code(code)
@@ -346,13 +355,75 @@ async def verify_code_with_telegram(
 
 
 @router.get("/me", response_model=UserResponse)
-async def get_me(current_user: User = Depends(get_user_by_telegram_id)):
+async def get_me(current_user: User = Depends(get_current_user)):
     """
     Get current user information.
     """
-    # This endpoint should use JWT token, but for simplicity we're using telegram_id
-    # In production, this should use get_current_user dependency
-    return UserResponse(**current_user.dict(by_alias=True))
+    return UserResponse(**current_user.model_dump(by_alias=True))
+
+
+@router.post("/sso", response_model=TokenResponse)
+async def sso_login(
+    request: SSOLoginRequest,
+    authorization: Optional[str] = Header(None)
+):
+    """
+    Exchange a validated Katalis token into Booking Room auth payload.
+
+    The token remains the bearer token used by the frontend, while local
+    Booking Room user state controls role and active status.
+    """
+    external_token = get_authorization_token(authorization, request.external_token)
+    if not external_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing external token"
+        )
+
+    try:
+        employee = await katalis_service.get_current_employee(external_token)
+    except ExternalAuthError as exc:
+        raise HTTPException(
+            status_code=exc.status_code,
+            detail={
+                "message": exc.message,
+                "endpoint": exc.endpoint,
+                "status_code": exc.status_code,
+            }
+        )
+
+    external_user_id = extract_external_user_id(employee)
+    if not external_user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="External credential response missing account id"
+        )
+
+    user = await User.find_one(User.external_user_id == external_user_id)
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User belum tersinkron dari employee source"
+        )
+
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User account is inactive"
+        )
+
+    company_id = extract_company_id(employee)
+    if company_id and user.external_company_id != company_id:
+        user.external_company_id = company_id
+
+    user.last_login_at = datetime.now(settings.timezone)
+    user.updated_at = now_utc()
+    await user.save()
+
+    return TokenResponse(
+        access_token=external_token,
+        user=UserResponse(**user.model_dump(by_alias=True))
+    )
 
 
 # External App Integration Endpoints
@@ -391,7 +462,7 @@ async def verify_external_token_endpoint(request: ExternalTokenVerifyRequest):
         return ExternalTokenVerifyResponse(
             success=True,
             registered=True,
-            user=UserResponse(**user.dict(by_alias=True))
+            user=UserResponse(**user.model_dump(by_alias=True))
         )
     else:
         # User not registered, return info for registration
@@ -454,5 +525,5 @@ async def register_external_user_endpoint(request: ExternalRegisterRequest):
     return ExternalRegisterResponse(
         success=True,
         message="User registered successfully",
-        user=UserResponse(**user.dict(by_alias=True))
+        user=UserResponse(**user.model_dump(by_alias=True))
     )

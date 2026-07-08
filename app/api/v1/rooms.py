@@ -167,7 +167,7 @@ async def create_room(
     """
     Create a new room (Admin only).
     """
-    room = Room(**room_data.dict())
+    room = Room(**room_data.model_dump())
     await room.insert()
     
     return RoomResponse(
@@ -198,7 +198,7 @@ async def update_room(
         )
     
     # Update fields
-    update_data = room_data.dict(exclude_unset=True)
+    update_data = room_data.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(room, field, value)
     

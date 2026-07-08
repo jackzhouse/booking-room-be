@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import List, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class RoomCreate(BaseModel):
@@ -22,6 +22,8 @@ class RoomUpdate(BaseModel):
 
 class RoomResponse(BaseModel):
     """Response schema for room data"""
+    model_config = ConfigDict(populate_by_name=True)
+
     id: str = Field(alias="_id")
     name: str
     capacity: int
@@ -30,5 +32,3 @@ class RoomResponse(BaseModel):
     is_active: bool
     created_at: datetime
     
-    class Config:
-        populate_by_name = True

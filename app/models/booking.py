@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from typing import Optional
 from beanie import Document, Indexed
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from bson import ObjectId
 
 
@@ -20,6 +20,31 @@ class RoomSnapshot(BaseModel):
 
 class Booking(Document):
     """Booking model for room reservations"""
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+        json_schema_extra={
+            "example": {
+                "booking_number": "BK-00123",
+                "user_id": "507f1f77bcf86cd799439011",
+                "user_snapshot": {
+                    "full_name": "Budi Santoso",
+                    "division": "Engineering",
+                    "telegram_id": 123456789
+                },
+                "room_id": "507f1f77bcf86cd799439012",
+                "room_snapshot": {
+                    "name": "Ruang Meeting 1"
+                },
+                "telegram_group_id": -1001234567890,
+                "title": "Sprint Planning Q1",
+                "division": "Engineering",
+                "description": "Kick off sprint dengan seluruh tim dev",
+                "start_time": "2025-02-24T09:00:00+07:00",
+                "end_time": "2025-02-24T11:00:00+07:00",
+                "status": "active"
+            }
+        },
+    )
     
     booking_number: Indexed(str, unique=True)  # Unique booking number
     user_id: ObjectId
@@ -54,27 +79,3 @@ class Booking(Document):
             "booking_number"
         ]
     
-    class Config:
-        arbitrary_types_allowed = True
-        json_schema_extra = {
-            "example": {
-                "booking_number": "BK-00123",
-                "user_id": "507f1f77bcf86cd799439011",
-                "user_snapshot": {
-                    "full_name": "Budi Santoso",
-                    "division": "Engineering",
-                    "telegram_id": 123456789
-                },
-                "room_id": "507f1f77bcf86cd799439012",
-                "room_snapshot": {
-                    "name": "Ruang Meeting 1"
-                },
-                "telegram_group_id": -1001234567890,
-                "title": "Sprint Planning Q1",
-                "division": "Engineering",
-                "description": "Kick off sprint dengan seluruh tim dev",
-                "start_time": "2025-02-24T09:00:00+07:00",
-                "end_time": "2025-02-24T11:00:00+07:00",
-                "status": "active"
-            }
-        }

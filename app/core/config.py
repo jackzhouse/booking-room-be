@@ -1,12 +1,23 @@
-from pydantic import BaseSettings, validator
 from typing import Optional
 from zoneinfo import ZoneInfo
 import consul
+import logging
 
 import yaml
+from pydantic import model_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+logger = logging.getLogger(__name__)
 
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        case_sensitive=True,
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
     # App
     APP_ENV: str = "production"  # Default to production for Vercel
     SECRET_KEY: Optional[str] = None
@@ -34,13 +45,22 @@ class Settings(BaseSettings):
     # External App Integration (e.g., Katalis)
     # External apps use the same SECRET_KEY for JWT encoding/decoding
     KATALIS_PRODUCER: str = "katalis"  # Producer name for external app
+    KATALIS_BASE_URL: str = "https://api.dev.katalis.info"
+    KATALIS_CREDENTIAL_CHECK_PATH: str = "/katalis/user/credential/check"
+    KATALIS_EMPLOYEES_PATH: str = "/api/v1/admin/employees"
+    KATALIS_DIVISIONS_PATH: str = "/api/v1/admin/divisions"
 
-    @validator('SECRET_KEY', 'BOT_TOKEN', 'ADMIN_TELEGRAM_ID', pre=True, always=True)
-    def validate_required_in_production(cls, v, field, values):
-        app_env = values.get('APP_ENV', 'production')
-        if app_env == "production" and v is None:
-            raise ValueError(f'{field.name} is required in production environment')
-        return v
+    @model_validator(mode="after")
+    def validate_required_in_production(self):
+        if self.APP_ENV != "production":
+            return self
+
+        required_fields = ("SECRET_KEY", "BOT_TOKEN", "ADMIN_TELEGRAM_ID")
+        for field_name in required_fields:
+            if getattr(self, field_name) is None:
+                raise ValueError(f"{field_name} is required in production environment")
+
+        return self
 
     @property
     def webhook_url(self) -> str:
@@ -49,17 +69,19 @@ class Settings(BaseSettings):
             return ""
         return f"{self.WEBHOOK_BASE_URL}/webhook/telegram/{self.BOT_TOKEN}"
 
-    class Config:
-        case_sensitive = True
-
-
 def load_settings_from_consul():
     """Load settings from Consul key-value store"""
-    # Get Consul connection details from environment variables
-    c = consul.Consul(host='consul', port=8500)
-    index, data = c.kv.get('new-config/psp-booking-room-be/setting')
-    config = yaml.load(data['Value'],Loader=yaml.SafeLoader)
-    return config
+    # Local development may not have Consul; fall back to .env/environment.
+    try:
+        c = consul.Consul(host='consul', port=8500)
+        index, data = c.kv.get('new-config/psp-booking-room-be/setting')
+        if not data or not data.get('Value'):
+            return {}
+        config = yaml.load(data['Value'], Loader=yaml.SafeLoader)
+        return config or {}
+    except Exception as exc:
+        logger.warning("Failed to load settings from Consul, using local environment: %s", exc)
+        return {}
 
 
 # Load settings from Consul and create Settings instance

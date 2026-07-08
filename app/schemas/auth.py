@@ -1,11 +1,13 @@
 from datetime import datetime
 from typing import Optional, Dict, Any
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from bson import ObjectId
 
 
 class TelegramLoginRequest(BaseModel):
     """Request schema for Telegram Login Widget authentication"""
+    model_config = ConfigDict(extra="allow")
+
     id: int
     first_name: str
     last_name: Optional[str] = None
@@ -14,20 +16,17 @@ class TelegramLoginRequest(BaseModel):
     auth_date: int
     hash: str
     
-    class Config:
-        extra = "allow"  # Allow extra fields from Telegram
-
-
 class TelegramMiniAppRequest(BaseModel):
     """Request schema for Telegram Mini App authentication"""
+    model_config = ConfigDict(extra="allow")
+
     init_data: str  # URL-encoded initData from Telegram
-    
-    class Config:
-        extra = "allow"
 
 
 class UserResponse(BaseModel):
     """Response schema for user data"""
+    model_config = ConfigDict(populate_by_name=True)
+
     id: str = Field(alias="_id")
     telegram_id: Optional[int] = None  # Optional for external users
     full_name: str
@@ -39,20 +38,29 @@ class UserResponse(BaseModel):
     external_user_id: Optional[str] = None  # User ID from external app
     external_company_id: Optional[str] = None  # Company ID from external app
     external_producer: Optional[str] = None  # External app producer
+    attendance_user_id: Optional[str] = None
+    employee_no: Optional[str] = None
+    department_id: Optional[str] = None
+    department_name: Optional[str] = None
+    job_title: Optional[str] = None
+    manager_external_id: Optional[str] = None
     is_admin: bool
     is_active: bool
     created_at: datetime
     last_login_at: Optional[datetime] = None
     
-    class Config:
-        populate_by_name = True
-
-
 class TokenResponse(BaseModel):
     """Response schema for successful authentication"""
     access_token: str
     token_type: str = "bearer"
     user: UserResponse
+
+
+class SSOLoginRequest(BaseModel):
+    """Request schema for exchanging external token into app auth."""
+    model_config = ConfigDict(extra="allow")
+
+    external_token: Optional[str] = None
 
 
 class UserCreate(BaseModel):
@@ -64,10 +72,9 @@ class UserCreate(BaseModel):
 
 class AuthCodeGenerateRequest(BaseModel):
     """Request schema for generating auth code"""
+    model_config = ConfigDict(extra="allow")
+
     telegram_user_id: Optional[int] = Field(None, description="Telegram user ID to authorize the code for (optional for web users)")
-    
-    class Config:
-        extra = "allow"
 
 
 class AuthCodeData(BaseModel):
@@ -113,10 +120,9 @@ class AuthCodeVerifyResponse(BaseModel):
 
 class ExternalTokenVerifyRequest(BaseModel):
     """Request schema for verifying external app token"""
+    model_config = ConfigDict(extra="allow")
+
     token: str
-    
-    class Config:
-        extra = "allow"
 
 
 class ExternalTokenVerifyResponse(BaseModel):
@@ -130,16 +136,13 @@ class ExternalTokenVerifyResponse(BaseModel):
 
 class ExternalRegisterRequest(BaseModel):
     """Request schema for registering external user"""
+    model_config = ConfigDict(extra="allow")
+
     token: str
     full_name: str
     division: str
     email: str
     telegram_username: Optional[str] = None
-    
-    class Config:
-        extra = "allow"
-
-
 class ExternalRegisterResponse(BaseModel):
     """Response schema for external user registration"""
     success: bool

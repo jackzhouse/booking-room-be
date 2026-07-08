@@ -5,6 +5,7 @@ from bson import ObjectId
 
 from app.core.security import decode_access_token, verify_telegram_hash, verify_telegram_init_data, verify_external_token
 from app.models.user import User
+from app.services.katalis_service import ExternalAuthError, extract_external_user_id, katalis_service
 
 security = HTTPBearer()
 
@@ -49,11 +50,11 @@ async def get_current_user(
         
         return user
     
-    # Try to decode as external app JWT token (for external users)
+    # Try to decode as external app JWT token (for external users sharing app secret)
     external_payload = verify_external_token(token)
     if external_payload:
         # Get external user ID from token
-        external_user_id: str = external_payload.get("userId")
+        external_user_id: str = external_payload.get("accountId") or external_payload.get("userId")
         if external_user_id is None:
             raise credentials_exception
         
@@ -71,6 +72,32 @@ async def get_current_user(
                 detail="User account is inactive"
             )
         
+        return user
+
+    # Fallback: validate opaque Katalis token against credential endpoint.
+    try:
+        external_employee = await katalis_service.get_current_employee(token)
+    except ExternalAuthError:
+        external_employee = None
+
+    if external_employee:
+        external_user_id = extract_external_user_id(external_employee)
+        if external_user_id is None:
+            raise credentials_exception
+
+        user = await User.find_one(
+            User.external_user_id == external_user_id
+        )
+
+        if user is None:
+            raise credentials_exception
+
+        if not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="User account is inactive"
+            )
+
         return user
     
     # Neither token type worked

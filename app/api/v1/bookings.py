@@ -27,7 +27,7 @@ def convert_booking_to_response(booking: Booking) -> BookingResponse:
     """
     Convert a Booking model to BookingResponse by converting ObjectId fields to strings.
     """
-    booking_dict = booking.dict(by_alias=True)
+    booking_dict = booking.model_dump(by_alias=True)
     
     # Convert ObjectId fields to strings
     if "_id" in booking_dict and booking_dict["_id"] is not None:
