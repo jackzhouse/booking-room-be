@@ -235,11 +235,16 @@ async def update_existing_booking(
             booking_id=booking_id,
             user_id=current_user.id,
             room_id=booking_data.room_id,
+            telegram_group_id=booking_data.telegram_group_id,
             title=booking_data.title,
             division=booking_data.division,
             description=booking_data.description,
             start_time=booking_data.start_time,
             end_time=booking_data.end_time,
+            has_consumption=booking_data.has_consumption,
+            consumption_note=booking_data.consumption_note,
+            consumption_group_id=booking_data.consumption_group_id,
+            verification_group_id=booking_data.verification_group_id,
             is_admin=current_user.is_admin
         )
         

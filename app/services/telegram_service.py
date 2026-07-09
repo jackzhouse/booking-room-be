@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timezone
 from typing import Optional, List, Dict
 from telegram import Bot, Chat
@@ -8,7 +9,19 @@ from app.models.booking import Booking
 from app.models.telegram_group import TelegramGroup
 
 
+logger = logging.getLogger(__name__)
 bot = Bot(token=settings.BOT_TOKEN)
+
+
+def _get_user_display_name(booking: Booking) -> str:
+    if booking.user_snapshot.external_user_id:
+        return booking.user_snapshot.telegram_username or booking.user_snapshot.full_name
+
+    return booking.user_snapshot.username or booking.user_snapshot.full_name
+
+
+def _get_division_display(booking: Booking) -> str:
+    return booking.division or booking.user_snapshot.division or "-"
 
 
 async def send_telegram_message(chat_id: int, message: str, parse_mode: str = "Markdown") -> bool:
@@ -31,7 +44,7 @@ async def send_telegram_message(chat_id: int, message: str, parse_mode: str = "M
         )
         return True
     except TelegramError as e:
-        print(f"Error sending Telegram message: {e}")
+        logger.warning("Error sending Telegram message to %s: %s", chat_id, e)
         return False
 
 
@@ -219,24 +232,14 @@ async def notify_new_booking(booking: Booking):
     # Use telegram_group_id from booking (snapshot)
     group_id = booking.telegram_group_id
     
-    # Format username with @ tag if available
-    # For external users: use telegram_username if provided, otherwise use full_name
-    # For Telegram users: use username
-    if booking.user_snapshot.external_user_id:
-        # External user from Katalis app
-        username_display = booking.user_snapshot.telegram_username if booking.user_snapshot.telegram_username else booking.user_snapshot.full_name
-    else:
-        # Telegram user
-        username_display = booking.user_snapshot.username if booking.user_snapshot.username else booking.user_snapshot.full_name
-    
-    # Get division - try booking.division first, then user_snapshot.division
-    division = booking.division if booking.division else booking.user_snapshot.division
+    username_display = _get_user_display_name(booking)
+    division = _get_division_display(booking)
     
     message = (
         f"📍 INFO BOOKING: {booking.room_snapshot.name.upper()}\n\n"
         f"Informasi reservasi untuk hari {format_date_indonesian(booking.start_time)}:\n\n"
         f"◽️ Jam: {format_time_range(booking.start_time, booking.end_time)}\n"
-        f"◽️ Divisi: {division if division else '-'}\n"
+        f"◽️ Divisi: {division}\n"
         f"◽️ Keperluan: {booking.title}\n"
         f"◽️ Deskripsi: {booking.description if booking.description else '-'}\n\n"
         f"◽️ PIC: {booking.user_snapshot.full_name} — @{username_display}\n\n"
@@ -246,33 +249,33 @@ async def notify_new_booking(booking: Booking):
     await send_telegram_message(group_id, message)
 
 
-async def notify_booking_updated(booking: Booking, old_data: dict):
+def _format_changed_fields(changed_fields: Optional[list[str]]) -> str:
+    if not changed_fields:
+        return "-"
+    return ", ".join(changed_fields)
+
+
+async def notify_booking_updated(
+    booking: Booking,
+    old_data: dict,
+    chat_id: Optional[int] = None,
+    changed_fields: Optional[list[str]] = None,
+):
     """
     Send notification for booking update to Telegram group.
     Uses telegram_group_id from booking object.
     """
-    # Use telegram_group_id from booking (snapshot)
-    group_id = booking.telegram_group_id
-    
-    # Format username with @ tag if available
-    # For external users: use telegram_username if provided, otherwise use full_name
-    # For Telegram users: use username
-    if booking.user_snapshot.external_user_id:
-        # External user from Katalis app
-        username_display = booking.user_snapshot.telegram_username if booking.user_snapshot.telegram_username else booking.user_snapshot.full_name
-    else:
-        # Telegram user
-        username_display = booking.user_snapshot.username if booking.user_snapshot.username else booking.user_snapshot.full_name
-    
-    # Get division - try booking.division first, then user_snapshot.division
-    division = booking.division if booking.division else booking.user_snapshot.division
+    group_id = chat_id if chat_id is not None else booking.telegram_group_id
+    username_display = _get_user_display_name(booking)
+    division = _get_division_display(booking)
     
     message = (
         f"📍 UPDATE BOOKING: {booking.room_snapshot.name.upper()}\n"
         f"#{booking.booking_number}\n\n"
+        f"Field yang berubah: {_format_changed_fields(changed_fields)}\n\n"
         f"Informasi reservasi untuk hari {format_date_indonesian(booking.start_time)}:\n\n"
         f"◽️ Jam: {format_time_range(booking.start_time, booking.end_time)}\n"
-        f"◽️ Divisi: {division if division else '-'}\n"
+        f"◽️ Divisi: {division}\n"
         f"◽️ Keperluan: {booking.title}\n"
         f"◽️ Deskripsi: {booking.description if booking.description else '-'}\n\n"
         f"◽️ PIC: {booking.user_snapshot.full_name} — @{username_display}\n\n"
@@ -282,33 +285,42 @@ async def notify_booking_updated(booking: Booking, old_data: dict):
     await send_telegram_message(group_id, message)
 
 
-async def notify_booking_cancelled(booking: Booking):
+async def notify_booking_target_removed(booking: Booking, chat_id: int, target_label: str):
+    """
+    Notify an old target group that the booking is no longer routed there.
+    """
+    username_display = _get_user_display_name(booking)
+
+    message = (
+        f"📍 UPDATE TARGET BOOKING\n"
+        f"#{booking.booking_number}\n\n"
+        f"Booking ini tidak lagi dikirim ke {target_label} ini.\n"
+        f"Mohon abaikan referensi lama untuk jadwal berikut:\n\n"
+        f"◽️ Ruang: {booking.room_snapshot.name}\n"
+        f"◽️ Hari: {format_date_indonesian(booking.start_time)}\n"
+        f"◽️ Jam: {format_time_range(booking.start_time, booking.end_time)}\n"
+        f"◽️ Keperluan: {booking.title}\n"
+        f"◽️ PIC: {booking.user_snapshot.full_name} — @{username_display}"
+    )
+
+    await send_telegram_message(chat_id, message)
+
+
+async def notify_booking_cancelled(booking: Booking, chat_id: Optional[int] = None):
     """
     Send notification for booking cancellation to Telegram group.
     Uses telegram_group_id from booking object.
     """
-    # Use telegram_group_id from booking (snapshot)
-    group_id = booking.telegram_group_id
-    
-    # Format username with @ tag if available
-    # For external users: use telegram_username if provided, otherwise use full_name
-    # For Telegram users: use username
-    if booking.user_snapshot.external_user_id:
-        # External user from Katalis app
-        username_display = booking.user_snapshot.telegram_username if booking.user_snapshot.telegram_username else booking.user_snapshot.full_name
-    else:
-        # Telegram user
-        username_display = booking.user_snapshot.username if booking.user_snapshot.username else booking.user_snapshot.full_name
-    
-    # Get division - try booking.division first, then user_snapshot.division
-    division = booking.division if booking.division else booking.user_snapshot.division
+    group_id = chat_id if chat_id is not None else booking.telegram_group_id
+    username_display = _get_user_display_name(booking)
+    division = _get_division_display(booking)
     
     message = (
         f"📍 CANCEL BOOKING: {booking.room_snapshot.name.upper()}\n"
         f"#{booking.booking_number}\n\n"
         f"Reservasi telah dibatalkan:\n\n"
         f"◽️ Jam: {format_time_range(booking.start_time, booking.end_time)}\n"
-        f"◽️ Divisi: {division if division else '-'}\n"
+        f"◽️ Divisi: {division}\n"
         f"◽️ Keperluan: {booking.title}\n"
         f"◽️ Deskripsi: {booking.description if booking.description else '-'}\n\n"
         f"◽️ PIC: @{username_display}\n\n"
@@ -353,15 +365,7 @@ async def notify_consumption_group(booking: Booking):
     if not booking.consumption_group_id:
         return
     
-    # Format username with @ tag if available
-    # For external users: use telegram_username if provided, otherwise use full_name
-    # For Telegram users: use username
-    if booking.user_snapshot.external_user_id:
-        # External user from Katalis app
-        username_display = booking.user_snapshot.telegram_username if booking.user_snapshot.telegram_username else booking.user_snapshot.full_name
-    else:
-        # Telegram user
-        username_display = booking.user_snapshot.username if booking.user_snapshot.username else booking.user_snapshot.full_name
+    username_display = _get_user_display_name(booking)
     
     message = (
         f"🍽️ Permintaan Konsumsi Meeting\n\n"
@@ -376,6 +380,28 @@ async def notify_consumption_group(booking: Booking):
     await send_telegram_message(booking.consumption_group_id, message)
 
 
+async def notify_consumption_group_cancelled(booking: Booking, chat_id: Optional[int] = None):
+    """
+    Send cancellation notification to consumption group.
+    """
+    group_id = chat_id if chat_id is not None else booking.consumption_group_id
+    if not group_id:
+        return
+
+    username_display = _get_user_display_name(booking)
+
+    message = (
+        f"🍽️ Pembatalan Konsumsi Meeting\n\n"
+        f"📍 Ruang: {booking.room_snapshot.name}\n"
+        f"📅 Hari: {format_date_indonesian(booking.start_time)}\n"
+        f"⏰ Jam: {format_time_range(booking.start_time, booking.end_time)}\n\n"
+        f"👤 PIC: {booking.user_snapshot.full_name} @{username_display}\n\n"
+        f"Reservasi dibatalkan, mohon hentikan persiapan konsumsi bila sudah dijadwalkan. Terima kasih."
+    )
+
+    await send_telegram_message(group_id, message)
+
+
 async def notify_verification_group_booking(booking: Booking):
     """
     Send booking notification to verification group (full format).
@@ -386,24 +412,14 @@ async def notify_verification_group_booking(booking: Booking):
     if not booking.verification_group_id:
         return
     
-    # Format username with @ tag if available
-    # For external users: use telegram_username if provided, otherwise use full_name
-    # For Telegram users: use username
-    if booking.user_snapshot.external_user_id:
-        # External user from Katalis app
-        username_display = booking.user_snapshot.telegram_username if booking.user_snapshot.telegram_username else booking.user_snapshot.full_name
-    else:
-        # Telegram user
-        username_display = booking.user_snapshot.username if booking.user_snapshot.username else booking.user_snapshot.full_name
-    
-    # Get division - try booking.division first, then user_snapshot.division
-    division = booking.division if booking.division else booking.user_snapshot.division
+    username_display = _get_user_display_name(booking)
+    division = _get_division_display(booking)
     
     message = (
         f"📍 INFO BOOKING: {booking.room_snapshot.name.upper()}\n\n"
         f"Informasi reservasi untuk hari {format_date_indonesian(booking.start_time)}:\n\n"
         f"◽️ Jam: {format_time_range(booking.start_time, booking.end_time)}\n"
-        f"◽️ Divisi: {division if division else '-'}\n"
+        f"◽️ Divisi: {division}\n"
         f"◽️ Keperluan: {booking.title}\n"
         f"◽️ Deskripsi: {booking.description if booking.description else '-'}\n\n"
         f"◽️ PIC: {booking.user_snapshot.full_name} — @{username_display}\n\n"
@@ -411,6 +427,16 @@ async def notify_verification_group_booking(booking: Booking):
     )
     
     await send_telegram_message(booking.verification_group_id, message)
+
+
+async def notify_verification_group_cancelled(booking: Booking):
+    """
+    Send cancellation notification to verification group.
+    """
+    if not booking.verification_group_id:
+        return
+
+    await notify_booking_cancelled(booking, chat_id=booking.verification_group_id)
 
 
 async def notify_verification_group_cleanup(booking: Booking):

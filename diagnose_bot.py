@@ -168,7 +168,7 @@ def main():
                 print(f"  - Has custom certificate: {webhook_info.get('has_custom_certificate', False)}")
                 print(f"  - Pending updates: {webhook_info.get('pending_update_count', 0)}")
                 
-                expected_webhook = f"{webhook_base_url}/webhook/telegram/{bot_token}" if webhook_base_url else "NOT SET"
+                expected_webhook = f"{webhook_base_url}/webhook/telegram" if webhook_base_url else "NOT SET"
                 print(f"\n  Expected webhook URL: {expected_webhook}")
                 
                 if current_webhook != expected_webhook:

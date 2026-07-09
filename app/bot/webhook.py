@@ -1,5 +1,6 @@
 import logging
 import asyncio
+from hmac import compare_digest
 from telegram import Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 
@@ -124,6 +125,21 @@ async def handle_webhook_update(data: dict, context: ContextTypes.DEFAULT_TYPE):
     logger.info(f"✅ Update processing completed")
 
 
+def is_valid_webhook_secret(secret_token: str | None) -> bool:
+    """
+    Validate the incoming Telegram webhook secret token.
+
+    If no secret token is configured, allow the request so local development
+    can continue without extra setup. Production requires a configured secret.
+    """
+    expected_secret = settings.WEBHOOK_SECRET_TOKEN
+    if not expected_secret:
+        return True
+    if not secret_token:
+        return False
+    return compare_digest(secret_token, expected_secret)
+
+
 async def set_webhook():
     """
     Set webhook for Telegram bot.
@@ -137,11 +153,14 @@ async def set_webhook():
         # Create a temporary application instance just for setting webhook
         temp_app = Application.builder().token(settings.BOT_TOKEN).build()
         await temp_app.initialize()
-        await temp_app.bot.set_webhook(
-            url=webhook_url,
-            drop_pending_updates=True,
-            allowed_updates=["message", "callback_query", "chat_member", "my_chat_member"]
-        )
+        webhook_kwargs = {
+            "url": webhook_url,
+            "drop_pending_updates": True,
+            "allowed_updates": ["message", "callback_query", "chat_member", "my_chat_member"],
+        }
+        if settings.WEBHOOK_SECRET_TOKEN:
+            webhook_kwargs["secret_token"] = settings.WEBHOOK_SECRET_TOKEN
+        await temp_app.bot.set_webhook(**webhook_kwargs)
         logger.info("✅ Telegram webhook set successfully with allowed_updates: message, callback_query, chat_member, my_chat_member")
         await temp_app.shutdown()
     except Exception as e:

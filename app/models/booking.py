@@ -10,7 +10,9 @@ class UserSnapshot(BaseModel):
     full_name: str
     username: Optional[str] = None
     division: Optional[str] = None
-    telegram_id: int
+    telegram_id: Optional[int] = None
+    telegram_username: Optional[str] = None
+    external_user_id: Optional[str] = None
 
 
 class RoomSnapshot(BaseModel):

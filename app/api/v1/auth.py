@@ -29,11 +29,11 @@ from app.api.deps import get_current_user, get_user_by_telegram_id
 from app.services.auth_code_service import auth_code_service
 from app.services.katalis_service import (
     ExternalAuthError,
-    extract_company_id,
     extract_external_user_id,
     get_authorization_token,
     katalis_service,
     now_utc,
+    populate_user_from_employee,
 )
 
 
@@ -396,25 +396,28 @@ async def sso_login(
     if not external_user_id:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="External credential response missing account id"
+            detail="External detail response missing user id"
         )
 
     user = await User.find_one(User.external_user_id == external_user_id)
     if not user:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="User belum tersinkron dari employee source"
+        user = User(
+            telegram_id=None,
+            full_name="User",
+            external_user_id=external_user_id,
+            is_admin=False,
+            is_active=True,
         )
+        populate_user_from_employee(user, employee, allow_active_update=False)
+        user.created_at = now_utc()
+    else:
+        populate_user_from_employee(user, employee, allow_active_update=False)
 
     if not user.is_active:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="User account is inactive"
         )
-
-    company_id = extract_company_id(employee)
-    if company_id and user.external_company_id != company_id:
-        user.external_company_id = company_id
 
     user.last_login_at = datetime.now(settings.timezone)
     user.updated_at = now_utc()

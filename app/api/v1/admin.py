@@ -34,13 +34,11 @@ from app.schemas.auth import UserResponse
 from app.services.telegram_service import test_notification
 from app.services.katalis_service import (
     ExternalAuthError,
-    extract_company_id,
     extract_external_user_id,
     get_display_name,
-    get_nested_id,
-    get_nested_name,
     katalis_service,
     now_utc,
+    populate_user_from_employee,
 )
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -86,7 +84,7 @@ def convert_user_to_response(user: User) -> UserResponse:
 def convert_user_to_management_response(user: User) -> UserManagementResponse:
     """
     Convert a User model to UserManagementResponse with proper field mapping.
-    Maps avatar_url to avatar.
+    Maps avatar_url to avatar and preserves legacy user fields.
     """
     user_dict = user.model_dump(by_alias=True)
     return UserManagementResponse(
@@ -94,15 +92,32 @@ def convert_user_to_management_response(user: User) -> UserManagementResponse:
         telegram_id=user_dict.get("telegram_id"),
         full_name=user_dict.get("full_name", ""),
         username=user_dict.get("username"),
+        account_id=user_dict.get("account_id"),
+        company_id=user_dict.get("company_id"),
+        role=user_dict.get("role"),
+        user_type=user_dict.get("user_type"),
         external_user_id=user_dict.get("external_user_id"),
+        external_company_id=user_dict.get("external_company_id"),
+        external_producer=user_dict.get("external_producer"),
         employee_no=user_dict.get("employee_no"),
         department_id=user_dict.get("department_id"),
         department_name=user_dict.get("department_name"),
         job_title=user_dict.get("job_title"),
+        created_by=user_dict.get("created_by"),
+        updated_by=user_dict.get("updated_by"),
+        deleted_by=user_dict.get("deleted_by"),
+        gender=user_dict.get("gender"),
+        nip=user_dict.get("nip"),
+        phone=user_dict.get("phone"),
+        deleted_at=user_dict.get("deleted_at"),
+        is_deleted=user_dict.get("is_deleted", False),
         is_admin=user_dict.get("is_admin", False),
         is_active=user_dict.get("is_active", True),
         avatar=user_dict.get("avatar_url"),  # Map avatar_url to avatar
-        created_at=user_dict.get("created_at", datetime.now(timezone.utc))
+        created_at=user_dict.get("created_at", datetime.now(timezone.utc)),
+        updated_at=user_dict.get("updated_at"),
+        last_synced_at=user_dict.get("last_synced_at"),
+        last_login_at=user_dict.get("last_login_at"),
     )
 
 
@@ -115,26 +130,6 @@ def convert_task_to_response(task: SyncTask) -> SyncTaskResponse:
         message=task.message,
         metadata=task.metadata,
     )
-
-
-def clean_email(value: Optional[str]) -> Optional[str]:
-    if not value:
-        return None
-    value = value.strip()
-    if "@" not in value:
-        return None
-    return value
-
-
-def parse_active_flag(value, fallback: bool) -> bool:
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, str):
-        return value.strip().lower() not in {"false", "0", "inactive", "nonaktif"}
-    if value is None:
-        return fallback
-    return bool(value)
-
 
 async def sync_external_divisions(token: str) -> int:
     divisions = await katalis_service.fetch_divisions(token)
@@ -177,31 +172,7 @@ async def sync_external_employees(token: str) -> int:
                 is_admin=False,
                 is_active=True,
             )
-
-        division_name = get_nested_name(employee, "division") or employee.get("divisionName")
-        division_id = get_nested_id(employee, "division") or employee.get("divisionId")
-        position_name = get_nested_name(employee, "position") or employee.get("positionName")
-        manager = employee.get("manager")
-        manager_external_id = None
-        if isinstance(manager, dict):
-            manager_external_id = extract_external_user_id(manager)
-
-        existing.full_name = get_display_name(employee)
-        existing.username = employee.get("username") or employee.get("userName") or existing.username
-        existing.email = clean_email(employee.get("email"))
-        existing.avatar_url = employee.get("photoUrl") or employee.get("avatar_url") or existing.avatar_url
-        existing.external_company_id = extract_company_id(employee)
-        existing.external_producer = employee.get("producer") or employee.get("lastService") or settings.KATALIS_PRODUCER
-        existing.attendance_user_id = employee.get("userId") or employee.get("attendanceUserId")
-        existing.employee_no = employee.get("identityNumber") or employee.get("employeeNo") or employee.get("employee_no")
-        existing.department_id = division_id
-        existing.department_name = division_name
-        existing.division = division_name
-        existing.job_title = position_name
-        existing.manager_external_id = manager_external_id
-        existing.is_active = parse_active_flag(employee.get("active"), existing.is_active)
-        existing.last_synced_at = now_utc()
-        existing.updated_at = now_utc()
+        populate_user_from_employee(existing, employee, allow_active_update=True)
         await existing.save()
         synced += 1
 

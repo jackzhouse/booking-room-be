@@ -1,0 +1,4 @@
+[2026-07-08 14:05] [booking-notifications] Update/cancel notif routing -> update now stores group changes, publish/update/cancel send to relevant groups, Telegram failures are logged, regression tests pass
+[2026-07-08 14:12] [booking-notifications] Consumption update bug -> update now auto-fills default consumption group when missing and sends cancel notif when consumption is turned off
+[2026-07-08 14:44] [booking-room] Booking duration rule -> added configurable minimum booking duration setting, UI hints, and backend validation tests
+[2026-07-08 15:11] [booking-room] Booking draft/publish rule alignment -> blocked new past-start booking creation, kept late draft publish manual, added changed-field update summaries plus old-target notifications/cancellation handling, refreshed backend docs, and verified with `backend/venv` pytest.

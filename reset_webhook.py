@@ -5,6 +5,7 @@ Gunakan script ini untuk memastikan webhook ter-set dengan konfigurasi yang bena
 """
 import asyncio
 import sys
+import os
 from telegram import Bot
 from app.core.config import settings
 
@@ -22,14 +23,18 @@ async def reset_webhook():
     
     # Step 2: Set ulang webhook dengan konfigurasi yang benar
     # Gunakan URL production langsung (Render)
-    webhook_url = "https://booking-room-be.onrender.com/webhook/telegram/8421546523:AAERgz8eG3R0cqyzvtq3-U1K-hiP43jr67k"
+    webhook_url = os.environ.get("WEBHOOK_BASE_URL", "https://booking-room-be.onrender.com") + "/webhook/telegram"
     print(f"🔗 Setting webhook to: {webhook_url}")
-    
-    await bot.set_webhook(
-        url=webhook_url,
-        drop_pending_updates=True,
-        allowed_updates=["message", "callback_query", "chat_member", "my_chat_member"]
-    )
+
+    webhook_kwargs = {
+        "url": webhook_url,
+        "drop_pending_updates": True,
+        "allowed_updates": ["message", "callback_query", "chat_member", "my_chat_member"]
+    }
+    if settings.WEBHOOK_SECRET_TOKEN:
+        webhook_kwargs["secret_token"] = settings.WEBHOOK_SECRET_TOKEN
+
+    await bot.set_webhook(**webhook_kwargs)
     print(f"✅ Webhook set successfully")
     
     # Step 3: Verifikasi konfigurasi

@@ -5,16 +5,20 @@ Use this to verify or manually configure the webhook.
 """
 import requests
 import sys
+import os
 from urllib.parse import urljoin
 
 # Your bot token
-BOT_TOKEN = "8421546523:AAERgz8eG3R0cqyzvtq3-U1K-hiP43jr67k"
+BOT_TOKEN = os.environ.get("BOT_TOKEN", "REPLACE_WITH_BOT_TOKEN")
+
+# Secret token used by Telegram to sign webhook requests
+WEBHOOK_SECRET_TOKEN = os.environ.get("WEBHOOK_SECRET_TOKEN")
 
 # Your backend URL (should match WEBHOOK_BASE_URL in Consul)
-WEBHOOK_BASE_URL = "https://api-booking-room.tkilocal.biz.id"
+WEBHOOK_BASE_URL = os.environ.get("WEBHOOK_BASE_URL", "https://api-booking-room.tkilocal.biz.id")
 
 # Full webhook URL
-WEBHOOK_URL = urljoin(WEBHOOK_BASE_URL, f"/webhook/telegram/{BOT_TOKEN}")
+WEBHOOK_URL = urljoin(WEBHOOK_BASE_URL, "/webhook/telegram")
 
 def get_webhook_info():
     """Get current webhook info from Telegram"""
@@ -31,6 +35,8 @@ def set_webhook():
         "drop_pending_updates": True,
         "allowed_updates": ["message", "callback_query", "chat_member", "my_chat_member"]
     }
+    if WEBHOOK_SECRET_TOKEN:
+        payload["secret_token"] = WEBHOOK_SECRET_TOKEN
     
     print(f"🔗 Setting webhook to: {WEBHOOK_URL}")
     print(f"📦 Payload: {payload}")
@@ -53,6 +59,7 @@ if __name__ == "__main__":
     print(f"Bot Token: {BOT_TOKEN}")
     print(f"Webhook Base URL: {WEBHOOK_BASE_URL}")
     print(f"Full Webhook URL: {WEBHOOK_URL}")
+    print(f"Webhook Secret: {'set' if WEBHOOK_SECRET_TOKEN else 'not set'}")
     print("=" * 60)
     
     # Check current status

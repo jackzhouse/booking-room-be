@@ -170,7 +170,7 @@ The API will be available at:
 - `POST /api/v1/admin/settings/test-notification` - Test Telegram notification
 
 ### Telegram Bot
-- `POST /webhook/telegram/{BOT_TOKEN}` - Telegram webhook endpoint
+- `POST /webhook/telegram` - Telegram webhook endpoint protected by `X-Telegram-Bot-Api-Secret-Token`
 
 ## Telegram Bot Commands
 

@@ -174,6 +174,13 @@ GET /api/v1/telegram-groups
 3. **No Sensitive Data:** Shows only necessary information (user name, division, not personal contact details)
 4. **Authentication Required:** All endpoints require valid authentication token
 
+## Booking Rules Update
+
+- New bookings cannot be created for a `start_time` that has already passed.
+- Draft bookings remain manual publish only; the backend does not auto-publish late drafts.
+- Publishing an existing draft after its start time has passed is still allowed.
+- Update notifications for published bookings now include the list of changed fields and route stale-target notices to old Telegram groups when targets move.
+
 ---
 
 ## API Response Codes

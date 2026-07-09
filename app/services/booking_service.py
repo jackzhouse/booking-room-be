@@ -22,12 +22,29 @@ from app.services.telegram_service import (
     get_telegram_group,
     notify_new_booking,
     notify_booking_updated,
+    notify_booking_target_removed,
     notify_booking_cancelled,
     notify_consumption_group,
+    notify_consumption_group_cancelled,
     notify_verification_group_booking,
+    notify_verification_group_cancelled,
     notify_verification_group_cleanup
 )
 from app.core.config import settings
+
+
+def _to_local_timezone(dt: datetime) -> datetime:
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=settings.timezone)
+    return dt.astimezone(settings.timezone)
+
+
+def _validate_new_booking_start_time(start_time: datetime):
+    local_start_time = _to_local_timezone(start_time)
+    now = datetime.now(settings.timezone)
+
+    if local_start_time < now:
+        raise ValueError("Booking baru tidak bisa dibuat untuk jam mulai yang sudah lewat")
 
 
 def format_text_with_links(text: Optional[str]) -> Optional[str]:
@@ -136,6 +153,8 @@ async def create_booking(
     user = await User.get(user_id)
     if not user:
         raise ValueError("User tidak ditemukan")
+
+    _validate_new_booking_start_time(start_time)
     
     # Validate telegram_group_id
     telegram_group = await get_telegram_group(telegram_group_id)
@@ -201,7 +220,9 @@ async def create_booking(
             full_name=user.full_name,
             username=user.username,
             division=user.division,
-            telegram_id=user.telegram_id
+            telegram_id=user.telegram_id,
+            telegram_username=user.telegram_username,
+            external_user_id=user.external_user_id
         ),
         room_id=ObjectId(room_id),
         room_snapshot=RoomSnapshot(name=room.name),
@@ -312,15 +333,68 @@ async def publish_booking(
     return booking
 
 
+def _build_changed_fields_map(
+    *,
+    room_changed: bool = False,
+    title_changed: bool = False,
+    division_changed: bool = False,
+    description_changed: bool = False,
+    schedule_changed: bool = False,
+    telegram_group_changed: bool = False,
+    verification_group_changed: bool = False,
+    has_consumption_changed: bool = False,
+    consumption_note_changed: bool = False,
+    consumption_group_changed: bool = False,
+) -> dict[str, list[str]]:
+    main_fields: list[str] = []
+    verification_fields: list[str] = []
+    consumption_fields: list[str] = []
+
+    if room_changed:
+        main_fields.append("ruangan")
+    if schedule_changed:
+        main_fields.append("tanggal/jam")
+    if title_changed:
+        main_fields.append("judul")
+    if division_changed:
+        main_fields.append("divisi")
+    if description_changed:
+        main_fields.append("deskripsi")
+    if telegram_group_changed:
+        main_fields.append("grup utama")
+
+    verification_fields.extend(main_fields)
+    if verification_group_changed:
+        verification_fields.append("grup verifikasi")
+
+    if has_consumption_changed:
+        consumption_fields.append("status konsumsi")
+    if consumption_note_changed:
+        consumption_fields.append("isi konsumsi")
+    if consumption_group_changed:
+        consumption_fields.append("grup konsumsi")
+
+    return {
+        "main": main_fields,
+        "verification": verification_fields,
+        "consumption": consumption_fields,
+    }
+
+
 async def update_booking(
     booking_id: str,
     user_id: ObjectId,
     room_id: Optional[str] = None,
+    telegram_group_id: Optional[int] = None,
     title: Optional[str] = None,
     division: Optional[str] = None,
     description: Optional[str] = None,
     start_time: Optional[datetime] = None,
     end_time: Optional[datetime] = None,
+    has_consumption: Optional[bool] = None,
+    consumption_note: Optional[str] = None,
+    consumption_group_id: Optional[int] = None,
+    verification_group_id: Optional[int] = None,
     is_admin: bool = False
 ) -> Booking:
     """
@@ -352,6 +426,17 @@ async def update_booking(
         description=booking.description,
         division=booking.division
     )
+    old_room_id = booking.room_id
+    old_telegram_group_id = booking.telegram_group_id
+    old_consumption_group_id = booking.consumption_group_id
+    old_verification_group_id = booking.verification_group_id
+    old_has_consumption = booking.has_consumption
+    old_consumption_note = booking.consumption_note
+    old_start_time = booking.start_time
+    old_end_time = booking.end_time
+    old_title = booking.title
+    old_division = booking.division
+    old_description = booking.description
     
     # Check ownership or admin
     if booking.user_id != user_id and not is_admin:
@@ -376,7 +461,13 @@ async def update_booking(
     
     # Update fields
     update_data = {}
-    
+
+    if telegram_group_id is not None:
+        telegram_group = await get_telegram_group(telegram_group_id)
+        if not telegram_group:
+            raise ValueError("Grup Telegram tidak ditemukan atau tidak aktif")
+        update_data["telegram_group_id"] = telegram_group_id
+
     if title is not None:
         update_data["title"] = title.title() if title else title
     
@@ -385,8 +476,43 @@ async def update_booking(
     
     if description is not None:
         update_data["description"] = format_text_with_links(description)
-    
+
+    if has_consumption is not None:
+        update_data["has_consumption"] = has_consumption
+
+    if consumption_note is not None:
+        update_data["consumption_note"] = consumption_note
+
+    final_consumption_group_id = consumption_group_id
+    if final_consumption_group_id is None and has_consumption is True:
+        if booking.consumption_group_id is not None:
+            final_consumption_group_id = booking.consumption_group_id
+        else:
+            setting = await Setting.find_one({"key": "default_consumption_group_id"})
+            if setting:
+                try:
+                    final_consumption_group_id = int(setting.value)
+                except (ValueError, TypeError):
+                    final_consumption_group_id = None
+
+    if final_consumption_group_id is not None:
+        consumption_group = await get_telegram_group(final_consumption_group_id)
+        if not consumption_group:
+            raise ValueError("Grup konsumsi tidak ditemukan atau tidak aktif")
+        update_data["consumption_group_id"] = final_consumption_group_id
+
+    if verification_group_id is not None:
+        verification_group = await get_telegram_group(verification_group_id)
+        if not verification_group:
+            raise ValueError("Grup verifikasi tidak ditemukan atau tidak aktif")
+        update_data["verification_group_id"] = verification_group_id
+
     if room_id is not None:
+        room = await Room.get(room_id)
+        if not room:
+            raise ValueError("Ruangan tidak ditemukan")
+        if not room.is_active:
+            raise ValueError("Ruangan tidak aktif")
         update_data["room_id"] = room_id_obj
         update_data["room_snapshot"] = RoomSnapshot(name=room_name)
     
@@ -446,8 +572,64 @@ async def update_booking(
     
     # Send notification only if booking is published (not draft)
     if booking.published:
-        await notify_booking_updated(booking, old_data.model_dump())
-    
+        room_changed = booking.room_id != old_room_id
+        title_changed = booking.title != old_title
+        division_changed = booking.division != old_division
+        description_changed = booking.description != old_description
+        schedule_changed = booking.start_time != old_start_time or booking.end_time != old_end_time
+        telegram_group_changed = telegram_group_id is not None and booking.telegram_group_id != old_telegram_group_id
+        verification_group_changed = (
+            verification_group_id is not None and booking.verification_group_id != old_verification_group_id
+        )
+        has_consumption_changed = has_consumption is not None and booking.has_consumption != old_has_consumption
+        consumption_note_changed = consumption_note is not None and booking.consumption_note != old_consumption_note
+        consumption_group_changed = (
+            booking.has_consumption
+            and booking.consumption_group_id != old_consumption_group_id
+        )
+        consumption_disabled = old_has_consumption and booking.has_consumption is False
+        changed_fields = _build_changed_fields_map(
+            room_changed=room_changed,
+            title_changed=title_changed,
+            division_changed=division_changed,
+            description_changed=description_changed,
+            schedule_changed=schedule_changed,
+            telegram_group_changed=telegram_group_changed,
+            verification_group_changed=verification_group_changed,
+            has_consumption_changed=has_consumption_changed,
+            consumption_note_changed=consumption_note_changed,
+            consumption_group_changed=consumption_group_changed,
+        )
+
+        if changed_fields["main"] and booking.telegram_group_id:
+            await notify_booking_updated(
+                booking,
+                old_data.model_dump(),
+                changed_fields=changed_fields["main"],
+            )
+
+        if changed_fields["verification"] and booking.verification_group_id:
+            await notify_booking_updated(
+                booking,
+                old_data.model_dump(),
+                chat_id=booking.verification_group_id,
+                changed_fields=changed_fields["verification"],
+            )
+
+        if changed_fields["consumption"] and booking.has_consumption and booking.consumption_group_id:
+            await notify_consumption_group(booking)
+
+        if telegram_group_changed and old_telegram_group_id:
+            await notify_booking_target_removed(booking, old_telegram_group_id, "grup utama")
+
+        if verification_group_changed and old_verification_group_id:
+            await notify_booking_target_removed(booking, old_verification_group_id, "grup verifikasi")
+
+        if old_has_consumption and old_consumption_group_id and (
+            consumption_disabled or consumption_group_changed
+        ):
+            await notify_consumption_group_cancelled(booking, chat_id=old_consumption_group_id)
+
     return booking
 
 
@@ -501,9 +683,16 @@ async def cancel_booking(
         )
     )
     
-    # Send notification
-    await notify_booking_cancelled(booking)
-    
+    # Send notifications only for published bookings
+    if booking.published:
+        await notify_booking_cancelled(booking)
+
+        if booking.verification_group_id:
+            await notify_verification_group_cancelled(booking)
+
+        if booking.has_consumption and booking.consumption_group_id:
+            await notify_consumption_group_cancelled(booking)
+
     return booking
 
 

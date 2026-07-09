@@ -2,17 +2,16 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Header, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from app.core.config import settings
 from app.core.database import connect_to_mongo, close_mongo_connection, init_beanie_models
 from app.api.v1 import auth, bookings, rooms, admin, telegram_groups
-from app.bot.webhook import set_webhook, delete_webhook, handle_webhook_update
+from app.bot.webhook import set_webhook, delete_webhook, handle_webhook_update, is_valid_webhook_secret
 from app.services.scheduler_service import check_and_notify_ended_bookings
 from telegram import Update
-from fastapi import Request
 
 # Create scheduler instance
 scheduler = AsyncIOScheduler()
@@ -107,7 +106,7 @@ app = FastAPI(
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[settings.FRONTEND_URL],  # In production, specify allowed origins
+    allow_origins= ["*"],   #[settings.FRONTEND_URL],  # In production, specify allowed origins
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -121,16 +120,24 @@ app.include_router(admin.router, prefix="/api/v1")
 app.include_router(telegram_groups.router, prefix="/api/v1")
 
 
-@app.post("/webhook/telegram/{token}")
-async def telegram_webhook(token: str, request: Request):
+@app.post("/webhook/telegram")
+async def telegram_webhook(
+    request: Request,
+    x_telegram_bot_api_secret_token: str | None = Header(
+        default=None,
+        alias="X-Telegram-Bot-Api-Secret-Token",
+    ),
+):
     """
     Telegram webhook endpoint.
     Receives updates from Telegram and passes them to the bot handler.
     """
-    # Verify token matches
-    if token != settings.BOT_TOKEN:
-        return {"status": "error", "message": "Invalid token"}
-    
+    if not is_valid_webhook_secret(x_telegram_bot_api_secret_token):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Invalid webhook secret",
+        )
+
     # Parse update from request
     data = await request.json()
     
@@ -172,6 +179,11 @@ async def initialize_default_settings():
             "key": "operating_hours_end",
             "value": "18:00",
             "description": "Jam selesai operasional booking"
+        },
+        {
+            "key": "min_booking_duration_minutes",
+            "value": "15",
+            "description": "Durasi minimal booking dalam menit"
         },
         {
             "key": "telegram_group_id",

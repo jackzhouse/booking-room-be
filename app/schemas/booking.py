@@ -8,7 +8,9 @@ class UserSnapshotResponse(BaseModel):
     full_name: str
     username: Optional[str] = None
     division: Optional[str] = None
-    telegram_id: int
+    telegram_id: Optional[int] = None
+    telegram_username: Optional[str] = None
+    external_user_id: Optional[str] = None
 
 
 class RoomSnapshotResponse(BaseModel):
@@ -35,11 +37,16 @@ class BookingCreate(BaseModel):
 class BookingUpdate(BaseModel):
     """Schema for updating an existing booking"""
     room_id: Optional[str] = None
+    telegram_group_id: Optional[int] = None
     title: Optional[str] = None
     division: Optional[str] = None
     description: Optional[str] = None
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
+    has_consumption: Optional[bool] = None
+    consumption_note: Optional[str] = None
+    consumption_group_id: Optional[int] = None
+    verification_group_id: Optional[int] = None
 
 
 class BookingResponse(BaseModel):

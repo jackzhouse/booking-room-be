@@ -23,6 +23,7 @@ You need to configure the following environment variables in Vercel:
 | `MONGODB_DB_NAME` | Database name | `booking_app` |
 | `BOT_TOKEN` | Telegram bot token from @BotFather | `123456789:ABCdefGHIjklMNOpqrsTUVwxyz` |
 | `WEBHOOK_BASE_URL` | Your Vercel app URL | `https://your-app-name.vercel.app` |
+| `WEBHOOK_SECRET_TOKEN` | Secret token sent by Telegram in webhook header | `generate-a-random-string` |
 | `ADMIN_TELEGRAM_ID` | Your Telegram user ID | `123456789` |
 
 ### Optional Variables
@@ -170,7 +171,7 @@ Expected response should show your Vercel webhook URL:
 {
   "ok": true,
   "result": {
-    "url": "https://your-app-name.vercel.app/webhook/telegram/<YOUR_BOT_TOKEN>",
+    "url": "https://your-app-name.vercel.app/webhook/telegram",
     "has_custom_certificate": false,
     "use_independent_mode": false,
     "pending_update_count": 0

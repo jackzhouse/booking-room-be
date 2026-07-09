@@ -126,7 +126,7 @@ def main():
         print(f"  - Last error message: {webhook_info.get('last_error_message', 'None')}")
         
         # Expected webhook URL
-        expected_url = f"https://api-booking-room.tkilocal.biz.id/webhook/telegram/{token}"
+        expected_url = "https://api-booking-room.tkilocal.biz.id/webhook/telegram"
         
         print(f"\n📋 Expected Webhook URL:")
         print(f"  - URL: {expected_url}")

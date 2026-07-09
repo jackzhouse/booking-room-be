@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional, Dict, Any
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from bson import ObjectId
 
 
@@ -34,6 +34,10 @@ class UserResponse(BaseModel):
     avatar_url: Optional[str] = None
     division: Optional[str] = None
     email: Optional[str] = None
+    account_id: Optional[str] = None
+    company_id: Optional[str] = None
+    role: Optional[str] = None
+    user_type: Optional[str] = None
     telegram_username: Optional[str] = None  # Telegram username for external users
     external_user_id: Optional[str] = None  # User ID from external app
     external_company_id: Optional[str] = None  # Company ID from external app
@@ -44,10 +48,42 @@ class UserResponse(BaseModel):
     department_name: Optional[str] = None
     job_title: Optional[str] = None
     manager_external_id: Optional[str] = None
+    created_by: Optional[str] = None
+    updated_by: Optional[str] = None
+    deleted_by: Optional[str] = None
+    gender: Optional[str] = None
+    nip: Optional[str] = None
+    phone: Optional[str] = None
+    deleted_at: Optional[datetime] = None
+    is_deleted: bool = False
     is_admin: bool
     is_active: bool
     created_at: datetime
+    updated_at: Optional[datetime] = None
+    last_synced_at: Optional[datetime] = None
     last_login_at: Optional[datetime] = None
+
+    @field_validator("id", "created_by", "updated_by", "deleted_by", mode="before")
+    @classmethod
+    def normalize_object_id(cls, value: Any) -> Any:
+        if value is None:
+            return value
+        return str(value)
+
+    @model_validator(mode="after")
+    def apply_legacy_defaults(self):
+        if self.role is None:
+            self.role = "ROLE_SUPER_ADMIN" if self.is_admin else "ROLE_USER"
+
+        if self.user_type is None:
+            if self.telegram_id is not None:
+                self.user_type = "TELEGRAM"
+            elif self.external_producer:
+                self.user_type = str(self.external_producer).upper()
+            elif self.external_user_id or self.external_company_id:
+                self.user_type = "EXTERNAL"
+
+        return self
     
 class TokenResponse(BaseModel):
     """Response schema for successful authentication"""

@@ -11,13 +11,30 @@ async def get_operating_hours() -> Tuple[time, time]:
     Get operating hours from settings.
     Returns (start_time, end_time) as time objects.
     """
-    start_setting = await Setting.find_one(Setting.key == "operating_hours_start")
-    end_setting = await Setting.find_one(Setting.key == "operating_hours_end")
+    start_setting = await Setting.find_one({"key": "operating_hours_start"})
+    end_setting = await Setting.find_one({"key": "operating_hours_end"})
     
     start_hour, start_minute = map(int, start_setting.value.split(":")) if start_setting else (8, 0)
     end_hour, end_minute = map(int, end_setting.value.split(":")) if end_setting else (18, 0)
     
     return time(start_hour, start_minute), time(end_hour, end_minute)
+
+
+async def get_min_booking_duration_minutes() -> int:
+    """
+    Get minimum booking duration from settings.
+    Defaults to 15 minutes.
+    """
+    setting = await Setting.find_one({"key": "min_booking_duration_minutes"})
+
+    if not setting or not setting.value:
+        return 15
+
+    try:
+        duration = int(setting.value)
+        return max(duration, 1)
+    except (ValueError, TypeError):
+        return 15
 
 
 async def validate_operating_hours(
@@ -63,7 +80,7 @@ async def validate_booking_duration(
     is_admin: bool = False
 ) -> Tuple[bool, Optional[str]]:
     """
-    Validate if booking duration is at least 15 minutes.
+    Validate if booking duration meets the configured minimum duration.
     Admins bypass this validation.
     
     Returns:
@@ -73,9 +90,13 @@ async def validate_booking_duration(
         return True, None
     
     duration_minutes = (end_time - start_time).total_seconds() / 60
+    minimum_minutes = await get_min_booking_duration_minutes()
     
-    if duration_minutes < 15:
-        return False, f"Durasi minimal booking adalah 15 menit. Anda memilih {int(duration_minutes)} menit."
+    if duration_minutes < minimum_minutes:
+        return False, (
+            f"Durasi minimal booking adalah {minimum_minutes} menit. "
+            f"Anda memilih {int(duration_minutes)} menit."
+        )
     
     return True, None
 

@@ -109,11 +109,22 @@ Body request baru:
 }
 ```
 
+Behavior tambahan:
+- Booking baru tetap disimpan sebagai draft (`published=false`)
+- Booking baru akan ditolak jika `start_time` sudah lewat saat request dibuat
+- Tidak ada auto-publish untuk draft yang sudah lewat start time
+
 #### POST `/api/v1/bookings/{id}/publish` - Publish Booking
 Mengirim multi-group notifications:
 1. Grup yang dipilih (selalu)
 2. Grup verifikasi (selalu, jika dikonfigurasi)
 3. Grup konsumsi (hanya jika has_consumption=true dan dikonfigurasi)
+
+Behavior tambahan:
+- Draft yang start time-nya sudah lewat tetap boleh dipublish manual
+- Update booking published menyebut field yang berubah pada pesan update
+- Jika target grup utama/verifikasi berubah, grup baru menerima update dan grup lama menerima info bahwa target booking sudah dipindahkan
+- Jika konsumsi dimatikan atau grup konsumsi diganti pada booking published, grup konsumsi lama menerima notifikasi pembatalan
 
 ### 2. Admin API (`/api/v1/admin`)
 

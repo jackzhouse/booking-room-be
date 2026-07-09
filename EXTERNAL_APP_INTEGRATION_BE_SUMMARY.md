@@ -138,6 +138,11 @@ SECRET_KEY=your-jwt-secret-key-minimum-32-characters-long
 
 ## Integration Flow
 
+Catatan final:
+- Flow login utama sekarang memakai `POST /api/v1/auth/sso`.
+- `credential/check` hanya dipakai sebagai gate/token source.
+- Profil user harus dibaca dari `attendance/api/v1/admin/employees/account/detail`.
+
 ### 1. First-Time User (Not Registered)
 ```
 User from Katalis App

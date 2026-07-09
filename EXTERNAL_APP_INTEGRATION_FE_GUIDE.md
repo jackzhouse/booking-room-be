@@ -15,19 +15,18 @@ External App (Katalis)
        ↓
 Booking Room Frontend
        ↓
-Verify token with BE
+Send external token to BE SSO
        ↓
-    ┌───────┴───────┐
-    ↓               ↓
+    ┌───────┴────────┐
+    ↓                ↓
 User exists?   User doesn't exist?
-    ↓               ↓
-Redirect to    Show registration form
-  dashboard           ↓
-    ↓           Submit registration
-    ↓               ↓
-   Access       Redirect to dashboard
-   booking           ↓
-                      Access booking
+    ↓                ↓
+Refresh local    Auto-register local
+profile + login      user + login
+    ↓                ↓
+Redirect to dashboard
+         ↓
+      Access booking
 ```
 
 ### Detailed Flow
@@ -62,42 +61,53 @@ const pathParts = window.location.pathname.split('/');
 const jwtToken = pathParts[pathParts.length - 1];
 ```
 
-#### Step 3: Verify Token
+#### Step 3: Send Token to App SSO
 
-Call the verify token endpoint to check user status:
+Call app SSO endpoint. Backend validates token, resolves credential-check token if needed, then reads the authoritative employee profile from `account/detail` before login or auto-register.
 
 ```typescript
-const verifyResponse = await fetch('https://booking-room.tkilocal.biz.id/api/v1/auth/external/verify-token', {
+const ssoResponse = await fetch('https://booking-room.tkilocal.biz.id/api/v1/auth/sso', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
+    'Authorization': `Bearer ${jwtToken}`,
   },
-  body: JSON.stringify({ token: jwtToken })
+  body: JSON.stringify({ external_token: jwtToken })
 });
 
-const verifyData = await verifyResponse.json();
+const ssoData = await ssoResponse.json();
 ```
 
-**Response if user doesn't exist:**
+**Response if user doesn't exist yet:**
 ```json
 {
-  "success": true,
-  "registered": false,
-  "user_id": "695dcff40cdc7726a29f5006",
-  "company_id": "0000000074739c67c2a1d6fe"
+  "access_token": "<external_token>",
+  "token_type": "bearer",
+  "user": {
+    "id": "6507f9b8e1...",
+    "telegram_id": null,
+    "full_name": "John Doe",
+    "username": "johndoe",
+    "division": "IT Division",
+    "email": "john.doe@example.com",
+    "external_user_id": "695dcff40cdc7726a29f5005",
+    "external_company_id": "0000000074739c67c2a1d6fe",
+    "is_admin": false,
+    "is_active": true
+  }
 }
 ```
 
 **Response if user exists:**
 ```json
 {
-  "success": true,
-  "registered": true,
+  "access_token": "<external_token>",
+  "token_type": "bearer",
   "user": {
     "id": "6507f9b8e1...",
     "telegram_id": null,
     "full_name": "John Doe",
-    "username": null,
+    "username": "johndoe",
     "avatar_url": null,
     "division": "IT Division",
     "email": "john.doe@example.com",
@@ -110,83 +120,23 @@ const verifyData = await verifyResponse.json();
 }
 ```
 
-#### Step 4a: Handle New User (Registration)
+#### Step 4: Persist Session and Redirect
 
-If `registered: false`, show registration form:
-
-**Registration Form Fields:**
-- Full Name (required)
-- Division (required)
-- Email (required)
-- Telegram Username (optional)
-
-**Submit Registration:**
-```typescript
-const registerResponse = await fetch('https://booking-room.tkilocal.biz.id/api/v1/auth/external/register', {
-  method: 'POST',
-  headers: {
-    'Content-Type': 'application/json',
-  },
-  body: JSON.stringify({
-    token: jwtToken,
-    full_name: formData.name,
-    division: formData.division,
-    email: formData.email,
-    telegram_username: formData.telegramUsername
-  })
-});
-
-const registerData = await registerResponse.json();
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "message": "User registered successfully",
-  "user": {
-    "id": "6507f9b8e1...",
-    "telegram_id": null,
-    "full_name": "John Doe",
-    "username": null,
-    "avatar_url": null,
-    "division": "IT Division",
-    "email": "john.doe@example.com",
-    "telegram_username": "@johndoe",
-    "is_admin": false,
-    "is_active": true,
-    "created_at": "2026-03-04T10:00:00Z",
-    "last_login_at": "2026-03-04T10:00:00Z"
-  }
-}
-```
-
-After successful registration:
 ```typescript
 // Save user data to state/context
-setUser(registerData.user);
+setUser(ssoData.user);
 
 // Save token to localStorage (for subsequent requests)
-localStorage.setItem('external_token', jwtToken);
+localStorage.setItem('access_token', ssoData.access_token);
 
 // Redirect to dashboard
 navigate('/app/mobile/');
 ```
 
-#### Step 4b: Handle Existing User
-
-If `registered: true`, user can proceed directly:
-
-```typescript
-// Save user data to state/context
-setUser(verifyData.user);
-
-// Save token to localStorage (for subsequent requests)
-localStorage.setItem('external_token', jwtToken);
-
-// Redirect to dashboard
-navigate('/app/mobile/');
-```
+Legacy note:
+- `POST /api/v1/auth/external/verify-token` and `POST /api/v1/auth/external/register` can remain for backward compatibility.
+- New integrations should prefer `POST /api/v1/auth/sso` as the primary login and auto-register endpoint.
+- `credential/check` is only a token gate/source. `account/detail` is the profile source of truth.
 
 #### Step 5: Access Booking Endpoints
 
@@ -212,7 +162,7 @@ const response = await fetch('https://booking-room.tkilocal.biz.id/api/v1/bookin
 
 ## API Endpoints
 
-### 1. Verify Token
+### 1. Legacy Verify Token
 
 Check if external token is valid and user registration status.
 
@@ -262,7 +212,7 @@ Check if external token is valid and user registration status.
 }
 ```
 
-### 2. Register User
+### 2. Legacy Register User
 
 Register a new user from external app.
 

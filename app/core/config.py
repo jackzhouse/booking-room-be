@@ -40,13 +40,16 @@ class Settings(BaseSettings):
     # Telegram
     BOT_TOKEN: Optional[str] = None
     WEBHOOK_BASE_URL: str = "https://localhost:8000"
+    WEBHOOK_SECRET_TOKEN: Optional[str] = None
     ADMIN_TELEGRAM_ID: Optional[int] = None
 
     # External App Integration (e.g., Katalis)
     # External apps use the same SECRET_KEY for JWT encoding/decoding
     KATALIS_PRODUCER: str = "katalis"  # Producer name for external app
     KATALIS_BASE_URL: str = "https://api.dev.katalis.info"
+    KATALIS_ACCOUNT_DETAIL_BASE_URL: str = "https://api.dev.teknologikartu.com"
     KATALIS_CREDENTIAL_CHECK_PATH: str = "/katalis/user/credential/check"
+    KATALIS_ACCOUNT_DETAIL_PATH: str = "/attendance/api/v1/admin/employees/account/detail"
     KATALIS_EMPLOYEES_PATH: str = "/api/v1/admin/employees"
     KATALIS_DIVISIONS_PATH: str = "/api/v1/admin/divisions"
 
@@ -55,7 +58,7 @@ class Settings(BaseSettings):
         if self.APP_ENV != "production":
             return self
 
-        required_fields = ("SECRET_KEY", "BOT_TOKEN", "ADMIN_TELEGRAM_ID")
+        required_fields = ("SECRET_KEY", "BOT_TOKEN", "WEBHOOK_SECRET_TOKEN", "ADMIN_TELEGRAM_ID")
         for field_name in required_fields:
             if getattr(self, field_name) is None:
                 raise ValueError(f"{field_name} is required in production environment")
@@ -67,7 +70,7 @@ class Settings(BaseSettings):
         """Full webhook URL for Telegram bot"""
         if not self.BOT_TOKEN:
             return ""
-        return f"{self.WEBHOOK_BASE_URL}/webhook/telegram/{self.BOT_TOKEN}"
+        return f"{self.WEBHOOK_BASE_URL}/webhook/telegram"
 
 def load_settings_from_consul():
     """Load settings from Consul key-value store"""

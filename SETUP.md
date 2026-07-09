@@ -50,6 +50,7 @@ MONGODB_DB_NAME=booking_app
 # Telegram Bot Configuration
 BOT_TOKEN=YOUR_BOT_TOKEN_HERE
 WEBHOOK_BASE_URL=http://localhost:8000
+WEBHOOK_SECRET_TOKEN=YOUR_RANDOM_WEBHOOK_SECRET
 ADMIN_TELEGRAM_ID=YOUR_TELEGRAM_ID_HERE
 ```
 
@@ -61,6 +62,7 @@ ADMIN_TELEGRAM_ID=YOUR_TELEGRAM_ID_HERE
 - `BOT_TOKEN`: Get from @BotFather on Telegram
 - `ADMIN_TELEGRAM_ID`: Get from @userinfobot on Telegram
 - `WEBHOOK_BASE_URL`: For local development, use `http://localhost:8000`
+- `WEBHOOK_SECRET_TOKEN`: Random string used by Telegram to sign webhook requests
 
 ### 5. Start the Application
 
@@ -75,7 +77,7 @@ You should see:
 ✅ Initialized default setting: operating_hours_start
 ✅ Initialized default setting: operating_hours_end
 ✅ Initialized default setting: telegram_group_id
-✅ Telegram webhook set to: http://localhost:8000/webhook/telegram/YOUR_BOT_TOKEN
+✅ Telegram webhook set to: http://localhost:8000/webhook/telegram
 INFO:     Application startup complete.
 INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
 ```
