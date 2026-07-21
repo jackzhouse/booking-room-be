@@ -3,7 +3,7 @@
 Test script to verify non-admin endpoints for bookings and telegram groups.
 
 This script tests:
-1. GET /bookings/all - Non-admin users can view all published bookings
+1. GET /bookings - Non-admin users can view all active bookings
 2. GET /telegram-groups/list - Non-admin users can view available telegram groups
 """
 
@@ -36,21 +36,20 @@ async def setup_database():
 
 
 async def test_bookings_all_endpoint():
-    """Test GET /bookings/all endpoint functionality."""
+    """Test GET /bookings endpoint functionality."""
     print("\n" + "="*60)
-    print("TEST 1: GET /bookings/all endpoint")
+    print("TEST 1: GET /bookings endpoint")
     print("="*60)
     
-    # Build query for published, active bookings only
+    # Build query for all active bookings, including drafts.
     query = {
         "status": "active",
-        "published": True
     }
     
-    # Get all published bookings
+    # Get all active bookings
     bookings = await Booking.find(query).sort(Booking.start_time).to_list()
     
-    print(f"\nFound {len(bookings)} published, active bookings")
+    print(f"\nFound {len(bookings)} active bookings")
     
     if bookings:
         print("\nSample bookings:")
@@ -64,7 +63,7 @@ async def test_bookings_all_endpoint():
             print(f"   End: {booking.end_time}")
             print(f"   Published: {booking.published}")
     else:
-        print("\nNo published bookings found. This is expected if no bookings have been published yet.")
+        print("\nNo active bookings found.")
     
     # Test with date filter
     today = date.today()
@@ -129,7 +128,7 @@ async def test_room_filter():
     
     room_bookings = await Booking.find(query).sort(Booking.start_time).to_list()
     
-    print(f"Found {len(room_bookings)} published bookings for {room.name}")
+    print(f"Found {len(room_bookings)} active bookings for {room.name}")
     
     if room_bookings:
         print("\nSample bookings for this room:")
@@ -148,7 +147,7 @@ async def main():
     print("TESTING NON-ADMIN ENDPOINTS")
     print("="*60)
     print("\nThis script tests the new endpoints for non-admin users:")
-    print("1. GET /bookings/all - View all published bookings")
+    print("1. GET /bookings - View all active bookings")
     print("2. GET /telegram-groups/list - View available telegram groups")
     
     try:

@@ -106,6 +106,33 @@ class UserCreate(BaseModel):
     email: Optional[str] = None
 
 
+class CurrentUserProfileUpdate(BaseModel):
+    """Profile fields a signed-in user may update for their own account."""
+
+    full_name: Optional[str] = Field(default=None, min_length=2, max_length=120)
+    division: Optional[str] = Field(default=None, max_length=120)
+    email: Optional[str] = None
+    telegram_username: Optional[str] = Field(default=None, max_length=33)
+
+    @field_validator("full_name", "division", "telegram_username", mode="before")
+    @classmethod
+    def strip_text(cls, value: Any) -> Any:
+        if value is None:
+            return None
+        value = str(value).strip()
+        return value or None
+
+    @field_validator("telegram_username")
+    @classmethod
+    def validate_telegram_username(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        normalized = value if value.startswith("@") else f"@{value}"
+        if not normalized[1:].replace("_", "").isalnum() or not 5 <= len(normalized) <= 33:
+            raise ValueError("Telegram username must contain 4-32 letters, numbers, or underscores")
+        return normalized
+
+
 class AuthCodeGenerateRequest(BaseModel):
     """Request schema for generating auth code"""
     model_config = ConfigDict(extra="allow")

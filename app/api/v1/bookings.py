@@ -63,10 +63,11 @@ async def get_bookings(
     current_user: User = Depends(get_current_active_user)
 ):
     """
-    Get all published bookings across all rooms (or filtered by room/date).
+    Get all active bookings across all rooms (or filtered by room/date).
     
     This endpoint allows users to view the schedule before making a booking.
-    Only shows published and active bookings (excludes draft and cancelled).
+    Shows active published bookings and active drafts so the room calendar reflects
+    every reserved time slot. Cancelled and completed bookings are excluded.
     
     Query Parameters:
     - room_id: Optional filter to show bookings for a specific room only
@@ -74,15 +75,14 @@ async def get_bookings(
     - end_date: Optional end date filter (YYYY-MM-DD format)
     
     If end_date is not provided, it defaults to start_date.
-    If no date filters are provided, returns all published bookings.
+    If no date filters are provided, returns all active bookings.
     
     Returns:
-        List of published bookings with user name and division info.
+        List of active bookings with user name and division info.
     """
-    # Build query for published, active bookings only
+    # Include every active reservation, including drafts, for calendar availability.
     query = {
         "status": "active",
-        "published": True
     }
     
     # Add room filter if provided

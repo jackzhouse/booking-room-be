@@ -8,7 +8,7 @@ This document describes updated endpoints that now support non-admin users in vi
 
 ### 1. GET /bookings
 
-View all published bookings across all rooms (with optional filters).
+View all active bookings across all rooms (with optional filters).
 
 **Access Level:** All authenticated users (non-admin read-only)
 
@@ -22,16 +22,16 @@ View all published bookings across all rooms (with optional filters).
 - `end_date` (optional, date): End date filter (YYYY-MM-DD format)
 
 **Behavior:**
-- Only returns published and active bookings
-- Excludes draft and cancelled bookings
+- Returns all active bookings, including drafts, so reserved room times remain visible in the calendar
+- Excludes cancelled and completed bookings
 - Shows user name and division information
 - If end_date is not provided, it defaults to start_date
-- If no date filters are provided, returns all published bookings
+- If no date filters are provided, returns all active bookings
 
 **Example Requests:**
 
 ```bash
-# Get all published bookings
+# Get all active bookings
 GET /api/v1/bookings
 
 # Get bookings for today
@@ -148,7 +148,7 @@ GET /api/v1/telegram-groups
 
 | Endpoint | Access | Returns | Purpose |
 |----------|--------|---------|---------|
-| `GET /bookings` | **All authenticated users** | All published bookings | **View schedule (UPDATED)** |
+| `GET /bookings` | **All authenticated users** | All active bookings, including drafts | **View schedule (UPDATED)** |
 | `GET /bookings/my` | Current user only | User's own bookings | View personal bookings |
 | `GET /bookings/{id}` | Owner or admin | Specific booking | View booking details |
 | `POST /bookings` | All authenticated users | New booking | Create booking |
@@ -170,7 +170,7 @@ GET /api/v1/telegram-groups
 ## Security Considerations
 
 1. **Read-Only Access:** Non-admin users can only view data, not modify it
-2. **Published Bookings Only:** Only shows published bookings to avoid exposing draft/unpublished bookings
+2. **Active Reservation Visibility:** Shows all active bookings, including drafts, so unavailable room times are visible before a new booking is made
 3. **No Sensitive Data:** Shows only necessary information (user name, division, not personal contact details)
 4. **Authentication Required:** All endpoints require valid authentication token
 
@@ -202,7 +202,7 @@ python test_non_admin_endpoints.py
 ```
 
 This will:
-1. Test fetching all published bookings
+1. Test fetching all active bookings
 2. Test fetching telegram groups
 3. Test room filter functionality
 
@@ -219,7 +219,7 @@ This will:
    - Create booking: `POST /bookings` with selected group_id
 
 2. **Schedule Display:**
-   - Use `GET /bookings` to show all published bookings
+   - Use `GET /bookings` to show all active bookings
    - Use query parameters to filter by room and date
    - Display user name and division for transparency
    - Use `GET /bookings/my` to show only user's own bookings
@@ -236,7 +236,7 @@ This will:
 ### Files Modified:
 
 1. **app/api/v1/bookings.py**
-   - Modified `GET /bookings` to show all published bookings with filters
+   - Modified `GET /bookings` to show all active bookings with filters
    - Added imports: `datetime`, `date`, `Query`
    - Implemented filtering logic for room and date
    - Changed `GET /bookings/my` to show only user's own bookings

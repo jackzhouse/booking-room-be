@@ -23,7 +23,8 @@ from app.schemas.auth import (
     ExternalTokenVerifyRequest,
     ExternalTokenVerifyResponse,
     ExternalRegisterRequest,
-    ExternalRegisterResponse
+    ExternalRegisterResponse,
+    CurrentUserProfileUpdate,
 )
 from app.api.deps import get_current_user, get_user_by_telegram_id
 from app.services.auth_code_service import auth_code_service
@@ -360,6 +361,28 @@ async def get_me(current_user: User = Depends(get_current_user)):
     """
     Get current user information.
     """
+    return UserResponse(**current_user.model_dump(by_alias=True))
+
+
+@router.put("/me/profile", response_model=UserResponse)
+async def update_current_user_profile(
+    request: CurrentUserProfileUpdate,
+    current_user: User = Depends(get_current_user),
+):
+    """Update editable profile fields for the signed-in user."""
+    update_data = request.model_dump(exclude_unset=True)
+    if not update_data:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No profile fields supplied",
+        )
+
+    for field, value in update_data.items():
+        setattr(current_user, field, value)
+    current_user.updated_at = datetime.now(timezone.utc)
+    current_user.updated_by = current_user.id
+    await current_user.save()
+
     return UserResponse(**current_user.model_dump(by_alias=True))
 
 

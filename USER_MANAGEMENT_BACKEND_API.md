@@ -12,6 +12,28 @@ User Management memungkinkan admin untuk:
 
 ## Required Endpoints
 
+### 0. Update Own Profile
+
+**Endpoint:** `PUT /api/v1/auth/me/profile`
+
+**Authentication:** Required (JWT or supported external bearer token)
+
+Updates editable profile fields for the signed-in user. `telegram_username` accepts `@username` or `username`; backend stores the normalized `@username` form.
+
+**Request Body:**
+```json
+{
+  "full_name": "Jane Doe",
+  "division": "Engineering",
+  "email": "jane@example.com",
+  "telegram_username": "@janedoe"
+}
+```
+
+**Success Response:** `200 OK` with the updated `UserResponse` object.
+
+**Error Response:** `400 Bad Request` when no fields are supplied; `401 Unauthorized` for an invalid session.
+
 ### 1. Get All Users
 
 **Endpoint:** `GET /api/v1/admin/users`
