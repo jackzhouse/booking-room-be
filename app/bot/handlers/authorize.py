@@ -8,6 +8,8 @@ from telegram.ext import ContextTypes
 from app.services.auth_code_service import auth_code_service
 from app.core.security import create_access_token
 from app.core.config import settings
+from app.core.enums import RoleEnum
+from app.core.authz import user_has_admin_role
 from app.models.user import User
 
 
@@ -36,9 +38,10 @@ async def create_or_update_user(telegram_user_data: dict) -> User:
         user.avatar_url = telegram_user_data.get("photo_url")
         user.last_login_at = datetime.now(settings.timezone)
         
-        # Set admin if this is the first admin
-        if telegram_id == settings.ADMIN_TELEGRAM_ID and not user.is_admin:
-            user.is_admin = True
+        if telegram_id == settings.ADMIN_TELEGRAM_ID:
+            user.role = RoleEnum.SUPER_ADMIN
+        elif user.role is None:
+            user.role = RoleEnum.STUDENT
         
         await user.save()
     else:
@@ -48,7 +51,7 @@ async def create_or_update_user(telegram_user_data: dict) -> User:
             full_name=full_name,
             username=telegram_user_data.get("username"),
             avatar_url=telegram_user_data.get("photo_url"),
-            is_admin=(telegram_id == settings.ADMIN_TELEGRAM_ID),
+            role=RoleEnum.SUPER_ADMIN if telegram_id == settings.ADMIN_TELEGRAM_ID else RoleEnum.STUDENT,
             is_active=True,
             last_login_at=datetime.now(settings.timezone)
         )
@@ -161,7 +164,7 @@ async def authorize_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         f"🔗 Buka aplikasi: {settings.FRONTEND_URL}"
     )
     
-    if user_obj.is_admin:
+    if user_has_admin_role(user_obj):
         message += "\n\n🔑 Anda memiliki hak akses admin."
     
     await update.message.reply_text(message)

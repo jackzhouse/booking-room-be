@@ -40,7 +40,8 @@ async def get_min_booking_duration_minutes() -> int:
 async def validate_operating_hours(
     start_time: datetime,
     end_time: datetime,
-    is_admin: bool = False
+    has_admin_role: bool = False,
+    is_admin: Optional[bool] = None,
 ) -> Tuple[bool, Optional[str]]:
     """
     Validate if booking time is within operating hours.
@@ -49,7 +50,7 @@ async def validate_operating_hours(
     Returns:
         (is_valid, error_message)
     """
-    if is_admin:
+    if has_admin_role or is_admin:
         return True, None
     
     try:
@@ -77,7 +78,8 @@ async def validate_operating_hours(
 async def validate_booking_duration(
     start_time: datetime,
     end_time: datetime,
-    is_admin: bool = False
+    has_admin_role: bool = False,
+    is_admin: Optional[bool] = None,
 ) -> Tuple[bool, Optional[str]]:
     """
     Validate if booking duration meets the configured minimum duration.
@@ -86,7 +88,7 @@ async def validate_booking_duration(
     Returns:
         (is_valid, error_message)
     """
-    if is_admin:
+    if has_admin_role or is_admin:
         return True, None
     
     duration_minutes = (end_time - start_time).total_seconds() / 60

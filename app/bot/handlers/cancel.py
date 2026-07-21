@@ -2,6 +2,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from app.models.user import User
+from app.core.authz import user_has_admin_role
 from app.models.booking import Booking
 from app.services.booking_service import cancel_booking
 from app.services.telegram_service import format_date_indonesian, format_time_range
@@ -72,7 +73,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # Check ownership (user can only cancel their own bookings)
     if booking.user_id != db_user.id:
         # Check if user is admin
-        if not db_user.is_admin:
+        if not user_has_admin_role(db_user):
             message = (
                 f"❌ Kamu tidak memiliki akses untuk membatalkan booking ini.\n\n"
                 f"🆔 {booking.booking_number}\n\n"
@@ -86,7 +87,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await cancel_booking(
             booking_id=str(booking.id),
             user_id=db_user.id,
-            is_admin=db_user.is_admin
+            has_admin_role=user_has_admin_role(db_user)
         )
         
         message = (

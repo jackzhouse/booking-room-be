@@ -148,7 +148,7 @@ async def set_webhook():
     """
     webhook_url = settings.webhook_url
     logger.info(f"🔗 Setting Telegram webhook to: {webhook_url}")
-    
+
     try:
         # Create a temporary application instance just for setting webhook
         temp_app = Application.builder().token(settings.BOT_TOKEN).build()
@@ -166,6 +166,17 @@ async def set_webhook():
     except Exception as e:
         logger.error(f"❌ Error setting webhook: {str(e)}")
         raise
+
+
+async def refresh_webhook_job():
+    """Run webhook setup for startup and scheduled refresh."""
+    logger.info("🔄 Running scheduled Telegram webhook refresh...")
+
+    try:
+        await set_webhook()
+        logger.info("✅ Scheduled Telegram webhook refresh completed")
+    except Exception as e:
+        logger.error(f"❌ Scheduled Telegram webhook refresh failed: {str(e)}")
 
 
 async def delete_webhook():
