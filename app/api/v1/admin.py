@@ -19,6 +19,7 @@ from app.schemas.user_management import (
     UpdateAdminRequest,
     UpdateStatusRequest,
     UpdateAvatarRequest,
+    UpdateUserRequest,
     SuccessResponse,
     ErrorResponse,
     SyncTaskResponse
@@ -92,6 +93,9 @@ def convert_user_to_management_response(user: User) -> UserManagementResponse:
         telegram_id=user_dict.get("telegram_id"),
         full_name=user_dict.get("full_name", ""),
         username=user_dict.get("username"),
+        division=user_dict.get("division"),
+        email=user_dict.get("email"),
+        telegram_username=user_dict.get("telegram_username"),
         account_id=user_dict.get("account_id"),
         company_id=user_dict.get("company_id"),
         role=user_dict.get("role"),
@@ -460,6 +464,45 @@ async def update_user_avatar(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to update user avatar"
+        )
+
+
+@router.patch("/users/{user_id}")
+async def update_user(
+    user_id: str,
+    request: UpdateUserRequest,
+    current_user: User = Depends(get_current_admin_user),
+):
+    """Update admin-editable profile fields for a user (Admin only)."""
+    try:
+        user = await User.get(user_id)
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found",
+            )
+
+        update_data = request.model_dump(exclude_unset=True)
+        if not update_data:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="No user fields supplied",
+            )
+
+        for field, value in update_data.items():
+            setattr(user, field, value)
+        user.updated_by = current_user.id
+        user.updated_at = datetime.now(timezone.utc)
+        await user.save()
+
+        user_response = convert_user_to_management_response(user)
+        return SuccessResponse(success=True, data=user_response.model_dump())
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update user",
         )
 
 

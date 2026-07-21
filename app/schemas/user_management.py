@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional, List
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, model_validator
 from typing import Any
 
 
@@ -10,6 +10,9 @@ class UserManagementResponse(BaseModel):
     telegram_id: Optional[int] = None
     full_name: str
     username: Optional[str] = None
+    division: Optional[str] = None
+    email: Optional[EmailStr] = None
+    telegram_username: Optional[str] = None
     account_id: Optional[str] = None
     company_id: Optional[str] = None
     role: Optional[str] = None
@@ -79,6 +82,41 @@ class UpdateStatusRequest(BaseModel):
 class UpdateAvatarRequest(BaseModel):
     """Request schema for updating user avatar"""
     avatar: str
+
+
+class UpdateUserRequest(BaseModel):
+    """Admin-editable profile fields for a user."""
+
+    full_name: Optional[str] = Field(default=None, min_length=2, max_length=120)
+    division: Optional[str] = Field(default=None, max_length=120)
+    email: Optional[EmailStr] = None
+    telegram_username: Optional[str] = Field(default=None, max_length=33)
+    phone: Optional[str] = Field(default=None, max_length=32)
+
+    @field_validator("full_name", "division", "telegram_username", "phone", mode="before")
+    @classmethod
+    def strip_text(cls, value: Any) -> Any:
+        if value is None:
+            return None
+        value = str(value).strip()
+        return value or None
+
+    @field_validator("full_name")
+    @classmethod
+    def validate_full_name(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            raise ValueError("Full name cannot be empty when supplied")
+        return value
+
+    @field_validator("telegram_username")
+    @classmethod
+    def validate_telegram_username(cls, value: Optional[str]) -> Optional[str]:
+        if value is None:
+            return None
+        normalized = value if value.startswith("@") else f"@{value}"
+        if not normalized[1:].replace("_", "").isalnum() or not 5 <= len(normalized) <= 33:
+            raise ValueError("Telegram username must contain 4-32 letters, numbers, or underscores")
+        return normalized
 
 
 class SuccessResponse(BaseModel):

@@ -48,10 +48,12 @@ class Settings(BaseSettings):
     KATALIS_PRODUCER: str = "katalis"  # Producer name for external app
     KATALIS_BASE_URL: str = "https://api.dev.katalis.info"
     KATALIS_ACCOUNT_DETAIL_BASE_URL: str = "https://api.dev.teknologikartu.com"
+    KATALIS_DIRECTORY_BASE_URL: str = "https://api.dev.teknologikartu.com"
     KATALIS_CREDENTIAL_CHECK_PATH: str = "/katalis/user/credential/check"
     KATALIS_ACCOUNT_DETAIL_PATH: str = "/attendance/api/v1/admin/employees/account/detail"
-    KATALIS_EMPLOYEES_PATH: str = "/api/v1/admin/employees"
-    KATALIS_DIVISIONS_PATH: str = "/api/v1/admin/divisions"
+    KATALIS_EMPLOYEES_PATH: str = "/attendance/api/v1/admin/employees"
+    KATALIS_DIVISIONS_PATH: str = "/attendance/api/v1/admin/divisions"
+    INITIAL_ADMIN_ACCOUNT_ID: Optional[str] = None
 
     @model_validator(mode="after")
     def validate_required_in_production(self):

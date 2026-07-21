@@ -59,10 +59,11 @@ class Booking(Document):
     description: Optional[str] = None
     start_time: datetime
     end_time: datetime
-    status: str = Field(default="active")  # active, cancelled
+    status: str = Field(default="active")  # active, cancelled, completed
     published: bool = Field(default=False)  # Whether booking is published to Telegram
     cancelled_at: Optional[datetime] = None
     cancelled_by: Optional[ObjectId] = None
+    completed_at: Optional[datetime] = None
     # Consumption fields
     has_consumption: bool = Field(default=False)  # Whether booking has consumption
     consumption_note: Optional[str] = None  # Consumption details note

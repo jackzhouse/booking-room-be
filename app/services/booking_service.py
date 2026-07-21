@@ -47,6 +47,13 @@ def _validate_new_booking_start_time(start_time: datetime):
         raise ValueError("Booking baru tidak bisa dibuat untuk jam mulai yang sudah lewat")
 
 
+def _ensure_active_booking(booking: Booking):
+    if booking.status == "completed":
+        raise ValueError("Booking sudah selesai")
+    if booking.status != "active":
+        raise ValueError("Booking sudah dibatalkan")
+
+
 def format_text_with_links(text: Optional[str]) -> Optional[str]:
     """
     Format text with proper capitalization while preserving URLs in lowercase.
@@ -286,8 +293,7 @@ async def publish_booking(
     if not booking:
         raise ValueError("Booking tidak ditemukan")
     
-    if booking.status != "active":
-        raise ValueError("Booking sudah dibatalkan")
+    _ensure_active_booking(booking)
     
     if booking.published:
         raise ValueError("Booking sudah dipublish")
@@ -414,8 +420,7 @@ async def update_booking(
     if not booking:
         raise ValueError("Booking tidak ditemukan")
     
-    if booking.status != "active":
-        raise ValueError("Booking sudah dibatalkan")
+    _ensure_active_booking(booking)
     
     # Store old data for history
     old_data = HistoryData(
@@ -655,8 +660,7 @@ async def cancel_booking(
     if not booking:
         raise ValueError("Booking tidak ditemukan")
     
-    if booking.status != "active":
-        raise ValueError("Booking sudah dibatalkan")
+    _ensure_active_booking(booking)
     
     # Check ownership or admin
     if booking.user_id != user_id and not is_admin:
@@ -718,6 +722,9 @@ async def delete_booking(
     if not booking:
         raise ValueError("Booking tidak ditemukan")
     
+    if booking.status == "completed":
+        raise ValueError("Booking sudah selesai")
+
     # Check ownership or admin
     if booking.user_id != user_id and not is_admin:
         raise ValueError("Anda tidak memiliki akses untuk menghapus booking ini")

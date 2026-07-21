@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from bson import ObjectId
 
 from app.models.telegram_group import TelegramGroup
+from app.models.setting import Setting
 from app.schemas.telegram_group import (
     TelegramGroupCreate,
     TelegramGroupResponse,
@@ -29,6 +30,27 @@ def convert_group_to_response(group: TelegramGroup) -> TelegramGroupResponse:
     if "_id" in group_dict and group_dict["_id"] is not None:
         group_dict["_id"] = str(group_dict["_id"])
     return TelegramGroupResponse(**group_dict)
+
+
+@router.get("/defaults")
+async def get_booking_group_defaults(
+    current_user: User = Depends(get_current_active_user)
+):
+    """Return booking-safe default Telegram group IDs for authenticated users."""
+    consumption_setting = await Setting.find_one(
+        {"key": "default_consumption_group_id"}
+    )
+
+    try:
+        consumption_group_id = (
+            int(consumption_setting.value)
+            if consumption_setting and consumption_setting.value
+            else None
+        )
+    except (TypeError, ValueError):
+        consumption_group_id = None
+
+    return {"default_consumption_group_id": consumption_group_id}
 
 
 @router.get("/{group_id}/verify", status_code=status.HTTP_200_OK)

@@ -148,6 +148,7 @@ async def test_sso_auto_registers_missing_user(monkeypatch):
         return build_account_detail_payload()["data"]
 
     monkeypatch.setattr(auth_module.katalis_service, "get_current_employee", fake_get_current_employee)
+    monkeypatch.setattr(auth_module.settings, "INITIAL_ADMIN_ACCOUNT_ID", "another-account")
 
     result = await auth_module.sso_login(
         SSOLoginRequest(external_token="token-123"),
@@ -174,6 +175,77 @@ async def test_sso_auto_registers_missing_user(monkeypatch):
     assert result.user.role == "ROLE_USER"
     assert result.user.is_admin is False
     assert len(FakeUser.saved_instances) == 1
+
+
+@pytest.mark.asyncio
+async def test_sso_bootstraps_matching_new_account_as_admin_without_employee_sync(monkeypatch):
+    async def fake_get_current_employee(_token: str):
+        return build_account_detail_payload()["data"]
+
+    monkeypatch.setattr(auth_module.katalis_service, "get_current_employee", fake_get_current_employee)
+    monkeypatch.setattr(
+        auth_module.settings,
+        "INITIAL_ADMIN_ACCOUNT_ID",
+        "6740422f74739c67c2a1d718",
+    )
+
+    result = await auth_module.sso_login(
+        SSOLoginRequest(external_token="token-123"),
+        authorization="Bearer token-123",
+    )
+
+    assert result.user.is_admin is True
+    assert FakeUser.saved_instances[0].is_admin is True
+
+
+@pytest.mark.asyncio
+async def test_sso_bootstraps_account_id_when_user_id_is_absent(monkeypatch):
+    async def fake_get_current_employee(_token: str):
+        payload = build_account_detail_payload()["data"]
+        payload.pop("userId")
+        return payload
+
+    monkeypatch.setattr(auth_module.katalis_service, "get_current_employee", fake_get_current_employee)
+    monkeypatch.setattr(
+        auth_module.settings,
+        "INITIAL_ADMIN_ACCOUNT_ID",
+        "6740422f74739c67c2a1d718",
+    )
+
+    result = await auth_module.sso_login(
+        SSOLoginRequest(external_token="token-123"),
+        authorization="Bearer token-123",
+    )
+
+    assert result.user.external_user_id == "6740422f74739c67c2a1d718"
+    assert result.user.is_admin is True
+
+
+@pytest.mark.asyncio
+async def test_sso_does_not_repromote_existing_bootstrap_identity(monkeypatch):
+    existing_user = FakeUser(
+        external_user_id="6740422e74739c67c2a1d711",
+        is_admin=False,
+    )
+    FakeUser.find_one_result = existing_user
+
+    async def fake_get_current_employee(_token: str):
+        return build_account_detail_payload()["data"]
+
+    monkeypatch.setattr(auth_module.katalis_service, "get_current_employee", fake_get_current_employee)
+    monkeypatch.setattr(
+        auth_module.settings,
+        "INITIAL_ADMIN_ACCOUNT_ID",
+        "6740422f74739c67c2a1d718",
+    )
+
+    result = await auth_module.sso_login(
+        SSOLoginRequest(external_token="token-123"),
+        authorization="Bearer token-123",
+    )
+
+    assert result.user.is_admin is False
+    assert existing_user.is_admin is False
 
 
 @pytest.mark.asyncio
@@ -244,3 +316,31 @@ async def test_get_current_employee_exchanges_token_before_fetching_detail(monke
     assert calls[1][3] is None
     assert calls[2][0] == auth_module.settings.KATALIS_ACCOUNT_DETAIL_PATH
     assert calls[2][3] == katalis_service.account_detail_base_url
+
+
+@pytest.mark.asyncio
+async def test_employee_and_division_sync_use_attendance_directory_api(monkeypatch):
+    calls = []
+
+    async def fake_get_json(path: str, token: str, params=None, base_url=None):
+        calls.append((path, token, params, base_url))
+        return {"data": []}
+
+    monkeypatch.setattr(katalis_service, "get_json", fake_get_json)
+
+    assert await katalis_service.fetch_divisions("sync-token") == []
+    assert await katalis_service.fetch_employees("sync-token") == []
+    assert calls == [
+        (
+            auth_module.settings.KATALIS_DIVISIONS_PATH,
+            "sync-token",
+            {"page": 1, "size": 100},
+            katalis_service.directory_base_url,
+        ),
+        (
+            auth_module.settings.KATALIS_EMPLOYEES_PATH,
+            "sync-token",
+            {"page": 1, "size": 100},
+            katalis_service.directory_base_url,
+        ),
+    ]

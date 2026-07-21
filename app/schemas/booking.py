@@ -69,6 +69,7 @@ class BookingResponse(BaseModel):
     published: bool
     cancelled_at: Optional[datetime] = None
     cancelled_by: Optional[str] = None
+    completed_at: Optional[datetime] = None
     has_consumption: bool = False
     consumption_note: Optional[str] = None
     consumption_group_id: Optional[int] = None

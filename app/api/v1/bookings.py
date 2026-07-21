@@ -49,7 +49,7 @@ async def get_my_bookings(
 ):
     """
     Get all bookings for the current user.
-    Optionally filter by status (active/cancelled).
+    Optionally filter by status (active/cancelled/completed).
     """
     bookings = await get_user_bookings(current_user.id, status)
     return [convert_booking_to_response(booking) for booking in bookings]

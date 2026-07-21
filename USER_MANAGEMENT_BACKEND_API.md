@@ -6,6 +6,7 @@ Dokumentasi endpoint backend yang dibutuhkan untuk fitur User Management di fron
 
 User Management memungkinkan admin untuk:
 - Melihat semua user yang terdaftar di sistem
+- Mengubah data profil user
 - Mengubah role user (menjadi admin atau user biasa)
 - Mengaktifkan/menonaktifkan user
 
@@ -75,7 +76,30 @@ User Management memungkinkan admin untuk:
 
 ---
 
-### 2. Toggle User Admin Role
+### 2. Update User Profile
+
+**Endpoint:** `PATCH /api/v1/admin/users/{userId}`
+
+**Authentication:** Required (JWT Token - Admin only)
+
+Only profile fields are editable. Role and account status continue to use their dedicated endpoints.
+
+**Request Body:**
+```json
+{
+  "full_name": "Jane Doe",
+  "division": "Engineering",
+  "email": "jane@example.com",
+  "telegram_username": "@janedoe",
+  "phone": "+628123456789"
+}
+```
+
+Every field except `full_name` may be `null` to clear its saved value. The response uses the standard `{ "success": true, "data": { ... } }` wrapper.
+
+---
+
+### 3. Toggle User Admin Role
 
 **Endpoint:** `PATCH /api/v1/admin/users/{userId}/admin`
 
@@ -141,7 +165,7 @@ User Management memungkinkan admin untuk:
 
 ---
 
-### 3. Toggle User Active Status
+### 4. Toggle User Active Status
 
 **Endpoint:** `PATCH /api/v1/admin/users/{userId}/status`
 

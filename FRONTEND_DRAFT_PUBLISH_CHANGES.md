@@ -231,7 +231,7 @@ const BookingForm = () => {
       
       {/* Informasi Draft */}
       <div className="info-box">
-        ℹ️ Booking akan disimpan sebagai Draft dan belum dikirim ke Telegram.
+        Booking akan disimpan sebagai Draft dan belum dikirim ke Telegram.
         <br />
         📢 Anda harus publish booking agar muncul di jadwal.
       </div>

@@ -67,6 +67,7 @@ Scroll down to **"Environment"** section and add these variables:
 | `BOT_TOKEN` | Your Telegram bot token | ✅ Yes |
 | `WEBHOOK_BASE_URL` | Your Render app URL | ✅ Yes |
 | `ADMIN_TELEGRAM_ID` | Your Telegram user ID | ✅ Yes |
+| `INITIAL_ADMIN_ACCOUNT_ID` | Katalis `accountId` for first Booking Room admin | ✅ For empty production DB |
 | `FRONTEND_URL` | Your frontend URL | ✅ Yes |
 | `PYTHON_VERSION` | `3.12.0` | ✅ Yes |
 
@@ -127,6 +128,10 @@ https://booking-room-be.onrender.com/docs
 ```
 
 Replace `booking-room-be.onrender.com` with your actual Render URL.
+
+### Bootstrap First Admin
+
+Before first deploy to an empty production database, set `INITIAL_ADMIN_ACCOUNT_ID` to the intended admin's Katalis `accountId`. That account becomes Booking Room admin on its first normal Katalis login; employee sync is not required. Follow [PRODUCTION_BOOTSTRAP.md](PRODUCTION_BOOTSTRAP.md) for the exact configuration and verification flow.
 
 ### Step 9: Update Webhook URL
 

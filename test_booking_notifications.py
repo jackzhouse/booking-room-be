@@ -4,6 +4,7 @@ from types import SimpleNamespace
 from bson import ObjectId
 
 from app.services import booking_service
+from app.services import scheduler_service
 
 
 class FakeBooking:
@@ -11,6 +12,7 @@ class FakeBooking:
         self,
         *,
         published: bool = True,
+        status: str = "active",
         has_consumption: bool = True,
         telegram_group_id: int = -1003952786718,
         verification_group_id: int = -4881064745,
@@ -35,10 +37,11 @@ class FakeBooking:
         self.description = "Tests"
         self.start_time = datetime(2026, 7, 8, 7, 0, tzinfo=timezone.utc)
         self.end_time = datetime(2026, 7, 8, 7, 19, tzinfo=timezone.utc)
-        self.status = "active"
+        self.status = status
         self.published = published
         self.cancelled_at = None
         self.cancelled_by = None
+        self.completed_at = None
         self.has_consumption = has_consumption
         self.consumption_note = "test"
         self.consumption_group_id = consumption_group_id
@@ -385,3 +388,73 @@ def test_publish_late_draft_still_succeeds(monkeypatch):
 
     assert result.published is True
     assert calls == ["main", "verification", "consumption"]
+
+
+def test_completed_booking_blocks_update_cancel_and_publish(monkeypatch):
+    booking = FakeBooking(published=True, status="completed")
+    calls: list[str] = []
+    _install_common_mocks(monkeypatch, booking, calls)
+
+    for action in (
+        lambda: booking_service.update_booking(
+            booking_id=str(booking.id),
+            user_id=booking.user_id,
+            title="Updated Title",
+        ),
+        lambda: booking_service.cancel_booking(
+            booking_id=str(booking.id),
+            user_id=booking.user_id,
+        ),
+        lambda: booking_service.publish_booking(
+            booking_id=str(booking.id),
+            user_id=booking.user_id,
+        ),
+    ):
+        try:
+            asyncio.run(action())
+            raise AssertionError("expected ValueError")
+        except ValueError as exc:
+            assert str(exc) == "Booking sudah selesai"
+
+
+def test_scheduler_marks_ended_booking_completed(monkeypatch):
+    now = datetime(2026, 7, 8, 10, 0, tzinfo=timezone.utc)
+    booking = FakeBooking(published=True)
+    booking.end_time = datetime(2026, 7, 8, 7, 19, tzinfo=timezone.utc)
+    booking.hrd_notified = False
+    notify_calls: list[str] = []
+
+    class FakeQuery:
+        def __init__(self, result):
+            self.result = result
+
+        def sort(self, *args, **kwargs):
+            return self
+
+        def limit(self, *args, **kwargs):
+            return self
+
+        async def to_list(self):
+            return self.result
+
+        async def count(self):
+            return len(self.result)
+
+    def fake_find(query):
+        if query.get("status") == "active":
+            return FakeQuery([booking])
+        return FakeQuery([])
+
+    async def fake_notify_verification_group_cleanup(target):
+        notify_calls.append(target.booking_number)
+
+    monkeypatch.setattr(scheduler_service.Booking, "find", fake_find)
+    monkeypatch.setattr(scheduler_service, "datetime", FixedDateTime)
+    monkeypatch.setattr(scheduler_service, "notify_verification_group_cleanup", fake_notify_verification_group_cleanup)
+
+    asyncio.run(scheduler_service.check_and_notify_ended_bookings())
+
+    assert booking.status == "completed"
+    assert booking.completed_at is not None
+    assert booking.hrd_notified is True
+    assert notify_calls == ["BK-00061"]

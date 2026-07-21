@@ -229,6 +229,7 @@ class KatalisService:
     def __init__(self) -> None:
         self.base_url = settings.KATALIS_BASE_URL.rstrip("/") + "/"
         self.account_detail_base_url = settings.KATALIS_ACCOUNT_DETAIL_BASE_URL.rstrip("/") + "/"
+        self.directory_base_url = settings.KATALIS_DIRECTORY_BASE_URL.rstrip("/") + "/"
 
     def build_url(self, path: str, *, base_url: Optional[str] = None) -> str:
         return urljoin((base_url or self.base_url), path.lstrip("/"))
@@ -352,12 +353,20 @@ class KatalisService:
             raise last_error
         raise ExternalAuthError("Layanan external auth sedang bermasalah")
 
-    async def fetch_paginated(self, path: str, token: str, preferred_key: str, size: int = 100) -> List[Dict[str, Any]]:
+    async def fetch_paginated(
+        self,
+        path: str,
+        token: str,
+        preferred_key: str,
+        size: int = 100,
+        *,
+        base_url: Optional[str] = None,
+    ) -> List[Dict[str, Any]]:
         items: List[Dict[str, Any]] = []
         page = 1
 
         while page <= 200:
-            payload = await self.get_json(path, token, params={"page": page, "size": size})
+            payload = await self.get_json(path, token, params={"page": page, "size": size}, base_url=base_url)
             page_items = extract_items(payload, preferred_key)
             items.extend(page_items)
 
@@ -373,10 +382,20 @@ class KatalisService:
         return items
 
     async def fetch_employees(self, token: str) -> List[Dict[str, Any]]:
-        return await self.fetch_paginated(settings.KATALIS_EMPLOYEES_PATH, token, "employees")
+        return await self.fetch_paginated(
+            settings.KATALIS_EMPLOYEES_PATH,
+            token,
+            "employees",
+            base_url=self.directory_base_url,
+        )
 
     async def fetch_divisions(self, token: str) -> List[Dict[str, Any]]:
-        return await self.fetch_paginated(settings.KATALIS_DIVISIONS_PATH, token, "divisions")
+        return await self.fetch_paginated(
+            settings.KATALIS_DIVISIONS_PATH,
+            token,
+            "divisions",
+            base_url=self.directory_base_url,
+        )
 
 
 katalis_service = KatalisService()

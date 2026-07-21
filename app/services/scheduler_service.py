@@ -1,8 +1,8 @@
 """
 Scheduler service for automatic background tasks.
-Handles cleanup notifications for ended bookings.
+Handles automatic completion and cleanup notifications for ended bookings.
 """
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List
 
 from app.models.booking import Booking
@@ -10,18 +10,40 @@ from app.services.telegram_service import notify_verification_group_cleanup
 from app.core.config import settings
 
 
+async def _complete_booking(booking: Booking, now: datetime) -> bool:
+    """
+    Mark a booking as completed and send cleanup notification when needed.
+
+    Returns:
+        True if cleanup notification was sent successfully, otherwise False.
+    """
+    booking.status = "completed"
+    booking.completed_at = booking.completed_at or now
+    booking.updated_at = now
+    await booking.save()
+
+    if not booking.published or not booking.verification_group_id or booking.hrd_notified:
+        return False
+
+    await notify_verification_group_cleanup(booking)
+    booking.hrd_notified = True
+    booking.updated_at = datetime.now(settings.timezone)
+    await booking.save()
+    return True
+
+
 async def check_and_notify_ended_bookings():
     """
-    Check for ended bookings that haven't been notified for cleanup yet.
+    Check for ended bookings and auto-close them.
     
     This function should be called periodically (e.g., every 5 minutes).
-    It finds active, published bookings where:
-    - end_time is in the past
-    - hrd_notified is False
+    It finds active bookings whose end_time is in the past, marks them as
+    completed, and sends cleanup notifications for published bookings.
     
     For each booking found, it:
-    1. Sends cleanup notification to verification group
-    2. Marks hrd_notified = True
+    1. Marks booking status as completed
+    2. Sends cleanup notification to verification group for published bookings
+    3. Marks hrd_notified = True after cleanup notification is delivered
     """
     print(f"[Scheduler] =======================================")
     print(f"[Scheduler] check_and_notify_ended_bookings() called")
@@ -29,25 +51,37 @@ async def check_and_notify_ended_bookings():
     now = datetime.now(settings.timezone)
     print(f"[Scheduler] Current time (Asia/Jakarta): {now}")
     print(f"[Scheduler] settings.timezone: {settings.timezone}")
-    print(f"[Scheduler] UTC now: {datetime.utcnow()}")
+    print(f"[Scheduler] UTC now: {datetime.now(timezone.utc)}")
     
-    # Find bookings that need cleanup notification
-    query = {
+    # Find active bookings that have ended and need to be closed.
+    active_query = {
         "status": "active",
-        "published": True,
-        "end_time": {"$lt": now},
-        "hrd_notified": False
+        "end_time": {"$lte": now},
     }
-    print(f"[Scheduler] Query: {query}")
+    print(f"[Scheduler] Active query: {active_query}")
     
-    bookings = await Booking.find(query).to_list()
-    
-    print(f"[Scheduler] Found {len(bookings)} bookings needing cleanup notification")
-    
+    active_bookings = await Booking.find(active_query).to_list()
+    pending_cleanup_query = {
+        "status": "completed",
+        "published": True,
+        "end_time": {"$lte": now},
+        "hrd_notified": False,
+    }
+    print(f"[Scheduler] Pending cleanup query: {pending_cleanup_query}")
+    pending_cleanup_bookings = await Booking.find(pending_cleanup_query).to_list()
+
+    booking_map = {str(booking.id): booking for booking in active_bookings}
+    for booking in pending_cleanup_bookings:
+        booking_map.setdefault(str(booking.id), booking)
+
+    bookings = list(booking_map.values())
+
+    print(f"[Scheduler] Found {len(bookings)} ended bookings to process")
+
     if not bookings:
         print(f"[Scheduler] No bookings to process")
         return
-    
+
     for booking in bookings:
         print(f"[Scheduler] --------------------------------------")
         print(f"[Scheduler] Processing booking: {booking.booking_number}")
@@ -60,17 +94,14 @@ async def check_and_notify_ended_bookings():
         print(f"[Scheduler]   - Verification Group ID: {booking.verification_group_id}")
         
         try:
-            # Send cleanup notification
-            print(f"[Scheduler]   - Sending notification to verification group...")
-            await notify_verification_group_cleanup(booking)
-            
-            # Mark as notified
-            booking.hrd_notified = True
-            booking.updated_at = now
-            await booking.save()
-            
-            print(f"[Scheduler] ✓ Cleanup notification sent for booking {booking.booking_number}")
-            print(f"[Scheduler] ✓ hrd_notified set to True")
+            notification_sent = await _complete_booking(booking, now)
+
+            if notification_sent:
+                print(f"[Scheduler] ✓ Cleanup notification sent for booking {booking.booking_number}")
+                print(f"[Scheduler] ✓ Booking marked as completed")
+            else:
+                print(f"[Scheduler] ✓ Booking marked as completed")
+                print(f"[Scheduler] ✓ No cleanup notification needed")
             
         except Exception as e:
             print(f"[Scheduler] ✗ Error processing booking {booking.booking_number}: {e}")
@@ -90,9 +121,9 @@ async def get_pending_cleanup_count() -> int:
     now = datetime.now(settings.timezone)
     
     count = await Booking.find({
-        "status": "active",
+        "status": {"$in": ["active", "completed"]},
         "published": True,
-        "end_time": {"$lt": now},
+        "end_time": {"$lte": now},
         "hrd_notified": False
     }).count()
     
@@ -112,9 +143,8 @@ async def get_recent_ended_bookings(limit: int = 10) -> List[Booking]:
     now = datetime.now(settings.timezone)
     
     bookings = await Booking.find({
-        "status": "active",
-        "published": True,
-        "end_time": {"$lt": now}
+        "status": {"$in": ["active", "completed"]},
+        "end_time": {"$lte": now}
     }).sort(-Booking.end_time).limit(limit).to_list()
-    
+
     return bookings

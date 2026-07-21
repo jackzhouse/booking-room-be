@@ -29,6 +29,7 @@ from app.api.deps import get_current_user, get_user_by_telegram_id
 from app.services.auth_code_service import auth_code_service
 from app.services.katalis_service import (
     ExternalAuthError,
+    extract_account_id,
     extract_external_user_id,
     get_authorization_token,
     katalis_service,
@@ -401,11 +402,16 @@ async def sso_login(
 
     user = await User.find_one(User.external_user_id == external_user_id)
     if not user:
+        account_id = extract_account_id(employee)
+        is_initial_admin = (
+            settings.INITIAL_ADMIN_ACCOUNT_ID is not None
+            and account_id == settings.INITIAL_ADMIN_ACCOUNT_ID
+        )
         user = User(
             telegram_id=None,
             full_name="User",
             external_user_id=external_user_id,
-            is_admin=False,
+            is_admin=is_initial_admin,
             is_active=True,
         )
         populate_user_from_employee(user, employee, allow_active_update=False)
