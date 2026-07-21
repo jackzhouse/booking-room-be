@@ -212,10 +212,10 @@ All queries leverage existing MongoDB indexes for optimal performance.
 
 ## Testing
 
-A test script `test_dashboard_stats.py` has been provided to verify the implementation:
+A test script `tests/test_dashboard_stats.py` has been provided to verify the implementation:
 
 ```bash
-python3 test_dashboard_stats.py
+python3 -m tests.test_dashboard_stats
 ```
 
 This test script will:

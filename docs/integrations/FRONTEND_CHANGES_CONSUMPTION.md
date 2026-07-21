@@ -671,7 +671,7 @@ const response = await fetch('/api/v1/admin/settings/group-ids', {
 ## 📚 Additional Resources
 
 ### Backend Documentation
-- Lihat `CONSUMPTION_FEATURE_DOCUMENTATION.md` untuk detail API
+- Lihat [`CONSUMPTION_FEATURE_DOCUMENTATION.md`](../api/CONSUMPTION_FEATURE_DOCUMENTATION.md) untuk detail API
 - Test API via Swagger: `http://localhost:8000/docs`
 
 ### API Endpoints

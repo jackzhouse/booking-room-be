@@ -237,7 +237,7 @@ async def protected_route(current_user: User = Depends(get_current_user)):
 ## Testing
 
 ### Test Script
-File: `test_external_app_integration.py`
+File: `tests/test_external_app_integration.py`
 
 ### Running Tests
 
@@ -248,7 +248,7 @@ uvicorn app.main:app --reload
 
 2. Run test script:
 ```bash
-python test_external_app_integration.py
+python -m tests.test_external_app_integration
 ```
 
 ### Manual Testing with cURL
@@ -368,7 +368,7 @@ Lihat dokumentasi terpisah: `EXTERNAL_APP_INTEGRATION_FE_GUIDE.md`
 ## Files Created
 
 1. `EXTERNAL_APP_INTEGRATION_FE_GUIDE.md` - Frontend integration guide
-2. `test_external_app_integration.py` - Test script for external app integration
+2. `tests/test_external_app_integration.py` - Test script for external app integration
 3. `EXTERNAL_APP_INTEGRATION_BE_SUMMARY.md` - This documentation
 
 ## Contact

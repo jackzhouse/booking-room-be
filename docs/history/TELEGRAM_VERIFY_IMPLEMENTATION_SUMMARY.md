@@ -84,8 +84,8 @@ class TelegramGroupCreate(BaseModel):
 ### 4. Documentation
 
 **Created Files:**
-- `TELEGRAM_GROUP_VERIFY_DOCUMENTATION.md` - Dokumentasi lengkap fitur
-- `test_telegram_group_verify.py` - Script testing untuk fitur verify
+- [`TELEGRAM_GROUP_VERIFY_DOCUMENTATION.md`](../api/TELEGRAM_GROUP_VERIFY_DOCUMENTATION.md) - Dokumentasi lengkap fitur
+- `tests/test_telegram_group_verify.py` - Script testing untuk fitur verify
 
 **Documentation Contents:**
 - API endpoint details
@@ -98,7 +98,7 @@ class TelegramGroupCreate(BaseModel):
 
 ### 5. Testing Script
 
-**Created:** `test_telegram_group_verify.py`
+**Created:** `tests/test_telegram_group_verify.py`
 
 **Features:**
 - Test verify endpoint dengan valid group ID
@@ -115,7 +115,7 @@ ADMIN_TOKEN=your_token_here
 TEST_GROUP_ID=-1001234567890
 
 # Run test
-python test_telegram_group_verify.py
+python -m tests.test_telegram_group_verify
 ```
 
 ## Files Modified
@@ -133,8 +133,8 @@ python test_telegram_group_verify.py
 
 ## Files Created
 
-1. `TELEGRAM_GROUP_VERIFY_DOCUMENTATION.md` - Complete API documentation
-2. `test_telegram_group_verify.py` - Testing script
+1. [`TELEGRAM_GROUP_VERIFY_DOCUMENTATION.md`](../api/TELEGRAM_GROUP_VERIFY_DOCUMENTATION.md) - Complete API documentation
+2. `tests/test_telegram_group_verify.py` - Testing script
 
 ## Usage Flow
 
@@ -235,7 +235,7 @@ curl -X POST "http://localhost:8000/api/v1/telegram-groups" \
 
 ```bash
 # Run the test script
-python test_telegram_group_verify.py
+python -m tests.test_telegram_group_verify
 ```
 
 ## API Changes
@@ -293,14 +293,14 @@ Possible future improvements:
 
 ## Related Documentation
 
-- `TELEGRAM_GROUP_VERIFY_DOCUMENTATION.md` - Complete API documentation
+- [`TELEGRAM_GROUP_VERIFY_DOCUMENTATION.md`](../api/TELEGRAM_GROUP_VERIFY_DOCUMENTATION.md) - Complete API documentation
 - `TELEGRAM_GROUPS_IMPLEMENTATION_SUMMARY.md` - Original Telegram groups implementation
-- `test_telegram_group_verify.py` - Testing script
+- `tests/test_telegram_group_verify.py` - Testing script
 
 ## Support
 
 Jika ada masalah atau pertanyaan:
-1. Cek dokumentasi lengkap di `TELEGRAM_GROUP_VERIFY_DOCUMENTATION.md`
-2. Jalankan test script untuk debugging: `python test_telegram_group_verify.py`
+1. Cek dokumentasi lengkap di [`TELEGRAM_GROUP_VERIFY_DOCUMENTATION.md`](../api/TELEGRAM_GROUP_VERIFY_DOCUMENTATION.md)
+2. Jalankan test script untuk debugging: `python -m tests.test_telegram_group_verify`
 3. Pastikan environment variables sudah terkonfigurasi dengan benar
 4. Verifikasi bot sudah di-add ke target grup dan memiliki permission yang cukup

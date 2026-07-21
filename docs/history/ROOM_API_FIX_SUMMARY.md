@@ -58,5 +58,5 @@ This will create:
 ## Files Created
 - `create_rooms_via_api.py` - Script to create rooms via API
 - `create_sample_rooms.py` - Script to create rooms directly in DB
-- `ROOM_API_DOCUMENTATION.md` - Complete API documentation
+- [`ROOM_API_DOCUMENTATION.md`](../api/ROOM_API_DOCUMENTATION.md) - Complete API documentation
 - `diagnose_api.py` - API diagnostic tool

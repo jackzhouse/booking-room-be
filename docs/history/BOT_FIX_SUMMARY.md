@@ -116,7 +116,7 @@ If a user hasn't logged in via the web app, they'll receive a message instructin
    - Ensure `BOT_TOKEN` is set correctly
    - Run the test script:
      ```bash
-     ./venv/bin/python test_bot.py
+     ./venv/bin/python -m tests.test_bot
      ```
 
 4. **Restart the application:**
@@ -157,14 +157,14 @@ When deploying to production, you have two options:
 - `app/bot/webhook.py` - Changed from webhook to polling mode
 - `app/main.py` - Updated to start bot polling on startup
 - `app/bot/handlers/start.py` - Added logging for debugging
-- `test_bot.py` - Created new file for testing bot connectivity (NEW)
+- `tests/test_bot.py` - Created new file for testing bot connectivity (NEW)
 
 ## Summary
 
 ✅ **Problem Fixed:** Bot now responds to `/start` command
 ✅ **Mode Changed:** Switched from webhook to polling for local development
 ✅ **Logging Enhanced:** All bot interactions are now logged
-✅ **Test Script:** Created `test_bot.py` to verify bot status
+✅ **Test Script:** Created `tests/test_bot.py` to verify bot status
 ✅ **Documentation:** This comprehensive guide for future reference
 
 ---
@@ -177,4 +177,4 @@ When deploying to production, you have two options:
 
 **Need Help?**
 - Check the logs in your terminal for error messages
-- Run `./venv/bin/python test_bot.py` to verify bot connectivity
+- Run `./venv/bin/python -m tests.test_bot` to verify bot connectivity

@@ -39,7 +39,7 @@ The verification process in `app/core/security.py` follows Telegram's specificat
 6. **Compute HMAC-SHA256** of data check string
 7. **Compare hashes** (case-insensitive)
 
-The test script `test_telegram_auth.py` confirms this logic works correctly.
+The test script `tests/test_telegram_auth.py` confirms this logic works correctly.
 
 ## Important Notes
 

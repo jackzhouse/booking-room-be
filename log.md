@@ -13,3 +13,5 @@
 [2026-07-21 09:46] [booking-room] Consumption default label correction -> rendered selected consumption group label directly in closed Select trigger so programmatic defaults remain visible; frontend Vitest and lint pass.
 [2026-07-21 09:53] [booking-room] Consumption default ID correction -> normalized configured Telegram group IDs before writing Select state, rejected null/empty/NaN values, and retained valid admin/user fallback; frontend Vitest and lint pass.
 [2026-07-21 10:35] [booking-room] Profile completion API -> added authenticated PUT /api/v1/auth/me/profile, normalized Telegram username, documented endpoint, and verified backend Python compilation; admin PATCH /api/v1/admin/users/{userId} remains available.
+[2026-07-21 11:46] [booking-room] Logout endpoint repair -> added authenticated POST /api/v1/auth/logout, documented stateless logout behavior, and verified two route tests plus router registration.
+[2026-07-21 11:48] [booking-room] Logout runtime check -> port 8000 runs a non-reloading Uvicorn process that still returns 404; restart required to load the route.

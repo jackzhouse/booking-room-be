@@ -1,7 +1,7 @@
 # User Management Backend API Implementation Summary
 
 ## Overview
-Implemented User Management backend API endpoints according to the specification in `USER_MANAGEMENT_BACKEND_API.md`.
+Implemented User Management backend API endpoints according to the specification in [`USER_MANAGEMENT_BACKEND_API.md`](../api/USER_MANAGEMENT_BACKEND_API.md).
 
 ## Implementation Details
 
@@ -72,7 +72,7 @@ All endpoints include proper error handling:
 ## Testing
 
 ### Test Script
-A test script has been created: `test_user_management.py`
+A test script has been created: `tests/test_user_management.py`
 
 To run the tests:
 ```bash
@@ -80,7 +80,7 @@ To run the tests:
 python -m uvicorn app.main:app --reload
 
 # In another terminal, run the test script
-python test_user_management.py
+python -m tests.test_user_management
 ```
 
 The test script will:
@@ -167,7 +167,7 @@ The User model now includes:
 
 ### Created:
 - `app/schemas/user_management.py` - User management schemas
-- `test_user_management.py` - Test script for endpoints
+- `tests/test_user_management.py` - Test script for endpoints
 - `USER_MANAGEMENT_IMPLEMENTATION_SUMMARY.md` - This document
 
 ## Frontend Integration

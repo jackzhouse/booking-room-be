@@ -107,7 +107,7 @@ Non-admin users can only view data, not modify it
 
 ## Testing
 
-Created test script: `test_non_admin_endpoints.py`
+Created test script: `tests/test_non_admin_endpoints.py`
 
 **Test Coverage:**
 1. Fetch all published bookings
@@ -117,14 +117,14 @@ Created test script: `test_non_admin_endpoints.py`
 
 **Run tests:**
 ```bash
-python test_non_admin_endpoints.py
+python -m tests.test_non_admin_endpoints
 ```
 
 ---
 
 ## Documentation
 
-Created comprehensive documentation: `NON_ADMIN_ENDPOINTS_DOCUMENTATION.md`
+Created comprehensive documentation: [`NON_ADMIN_ENDPOINTS_DOCUMENTATION.md`](../api/NON_ADMIN_ENDPOINTS_DOCUMENTATION.md)
 
 **Contents:**
 - Detailed endpoint descriptions
@@ -193,8 +193,8 @@ const bookings = await scheduleResponse.json();
 ## Files Created/Modified
 
 ### Created Files:
-1. `test_non_admin_endpoints.py` - Test script
-2. `NON_ADMIN_ENDPOINTS_DOCUMENTATION.md` - API documentation
+1. `tests/test_non_admin_endpoints.py` - Test script
+2. [`NON_ADMIN_ENDPOINTS_DOCUMENTATION.md`](../api/NON_ADMIN_ENDPOINTS_DOCUMENTATION.md) - API documentation
 3. `NON_ADMIN_IMPLEMENTATION_SUMMARY.md` - This file
 
 ### Modified Files:

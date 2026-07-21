@@ -80,7 +80,7 @@ After extensive troubleshooting, we've decided to switch from Vercel to Render.c
 ```
 ✅ render.yaml - Build and deploy configuration
 ✅ Procfile - Startup command
-✅ RENDER_DEPLOYMENT.md - Deployment guide
+✅ [`RENDER_DEPLOYMENT.md`](../deployment/RENDER_DEPLOYMENT.md) - Deployment guide
 ✅ PLATFORM_SWITCH_SUMMARY.md - This file
 ```
 
@@ -115,13 +115,13 @@ If you already deployed to Vercel (even with errors):
 
 1. **Copy environment variables** from Vercel dashboard
 2. **Create Render account** at render.com
-3. **Follow RENDER_DEPLOYMENT.md** guide
+3. Follow [`RENDER_DEPLOYMENT.md`](../deployment/RENDER_DEPLOYMENT.md) guide
 4. **Update webhook URL** in Telegram Bot API
 5. **Update frontend** to point to new Render URL
 
 ### For New Deployments
 
-Simply follow `RENDER_DEPLOYMENT.md` - no migration needed!
+Simply follow [`RENDER_DEPLOYMENT.md`](../deployment/RENDER_DEPLOYMENT.md) - no migration needed!
 
 ## Lessons Learned
 
@@ -149,7 +149,7 @@ All attempts are documented in `VERCEL_FIX_SUMMARY.md` for future reference.
 ### Immediate
 
 1. ✅ Create Render account
-2. ✅ Follow `RENDER_DEPLOYMENT.md`
+2. ✅ Follow [`RENDER_DEPLOYMENT.md`](../deployment/RENDER_DEPLOYMENT.md)
 3. ✅ Deploy successfully
 4. ✅ Test all endpoints
 
@@ -164,7 +164,7 @@ All attempts are documented in `VERCEL_FIX_SUMMARY.md` for future reference.
 
 If you have questions about this switch:
 
-1. Read `RENDER_DEPLOYMENT.md` for setup instructions
+1. Read [`RENDER_DEPLOYMENT.md`](../deployment/RENDER_DEPLOYMENT.md) for setup instructions
 2. Review `VERCEL_FIX_SUMMARY.md` to understand what we tried
 3. Check Render documentation at [docs.render.com](https://docs.render.com)
 

@@ -198,7 +198,7 @@ GET /api/v1/telegram-groups
 Run the test script to verify functionality:
 
 ```bash
-python test_non_admin_endpoints.py
+python -m tests.test_non_admin_endpoints
 ```
 
 This will:

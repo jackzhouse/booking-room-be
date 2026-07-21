@@ -386,6 +386,16 @@ async def update_current_user_profile(
     return UserResponse(**current_user.model_dump(by_alias=True))
 
 
+@router.post("/logout")
+async def logout(current_user: User = Depends(get_current_user)):
+    """Confirm logout for an authenticated client.
+
+    Access tokens are stateless, so the client clears its stored token after this
+    response. Revocation is handled by the identity provider when applicable.
+    """
+    return {"success": True, "message": "Logged out"}
+
+
 @router.post("/sso", response_model=TokenResponse)
 async def sso_login(
     request: SSOLoginRequest,

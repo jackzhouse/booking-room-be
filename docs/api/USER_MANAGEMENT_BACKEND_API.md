@@ -12,7 +12,28 @@ User Management memungkinkan admin untuk:
 
 ## Required Endpoints
 
-### 0. Update Own Profile
+### 0. Logout
+
+**Endpoint:** `POST /api/v1/auth/logout`
+
+**Authentication:** Required (JWT or supported external bearer token)
+
+Confirms an authenticated logout. Booking Room access tokens are stateless; the
+frontend clears its locally stored token after this response. This endpoint does
+not revoke an upstream Katalis token.
+
+**Success Response:** `200 OK`
+
+```json
+{
+  "success": true,
+  "message": "Logged out"
+}
+```
+
+**Error Response:** `401 Unauthorized` for a missing, invalid, or expired token.
+
+### 1. Update Own Profile
 
 **Endpoint:** `PUT /api/v1/auth/me/profile`
 
