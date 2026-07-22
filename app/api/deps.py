@@ -10,6 +10,20 @@ from app.services.katalis_service import ExternalAuthError, extract_external_use
 security = HTTPBearer()
 
 
+async def _find_external_user_by_candidates(*external_user_ids: Optional[str]) -> Optional[User]:
+    seen = set()
+    for external_user_id in external_user_ids:
+        if not external_user_id or external_user_id in seen:
+            continue
+        seen.add(external_user_id)
+
+        user = await User.find_one(User.external_user_id == external_user_id)
+        if user is not None:
+            return user
+
+    return None
+
+
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials = Depends(security)
 ) -> User:
@@ -29,49 +43,43 @@ async def get_current_user(
     
     token = credentials.credentials
     
-    # Try to decode as BE JWT token (for Telegram users)
+    # Try Katalis JWT first. Katalis tokens identify users with accountId/userId,
+    # while local Booking tokens identify users with sub.
+    external_payload = verify_external_token(token)
+    if external_payload:
+        user = await _find_external_user_by_candidates(
+            external_payload.get("accountId"),
+            external_payload.get("userId"),
+        )
+
+        if user is None:
+            raise credentials_exception
+
+        if not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="User account is inactive"
+            )
+
+        return user
+
+    # Try to decode as BE JWT token (for Telegram/local Booking users)
     payload = decode_access_token(token)
     if payload:
-        # Get user ID from token
         user_id: str = payload.get("sub")
         if user_id is None:
             raise credentials_exception
-        
-        # Get user from database
+
         user = await User.get(user_id)
         if user is None:
             raise credentials_exception
-        
+
         if not user.is_active:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="User account is inactive"
             )
-        
-        return user
-    
-    # Try to decode as external app JWT token (for external users sharing app secret)
-    external_payload = verify_external_token(token)
-    if external_payload:
-        # Get external user ID from token
-        external_user_id: str = external_payload.get("accountId") or external_payload.get("userId")
-        if external_user_id is None:
-            raise credentials_exception
-        
-        # Get user from database by external_user_id
-        user = await User.find_one(
-            User.external_user_id == external_user_id
-        )
-        
-        if user is None:
-            raise credentials_exception
-        
-        if not user.is_active:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="User account is inactive"
-            )
-        
+
         return user
 
     # Fallback: validate opaque Katalis token against credential endpoint.
@@ -85,9 +93,7 @@ async def get_current_user(
         if external_user_id is None:
             raise credentials_exception
 
-        user = await User.find_one(
-            User.external_user_id == external_user_id
-        )
+        user = await _find_external_user_by_candidates(external_user_id)
 
         if user is None:
             raise credentials_exception

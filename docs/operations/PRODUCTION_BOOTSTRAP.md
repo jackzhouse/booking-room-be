@@ -4,6 +4,12 @@
 
 Provision one Booking Room admin from Katalis SSO without running employee sync. This is intended for a new, empty production database.
 
+## Required Katalis account-detail host
+
+Set `KATALIS_ACCOUNT_DETAIL_BASE_URL=https://api.teknologikartu.com` and `KATALIS_ACCOUNT_DETAIL_PATH=/attendance/api/v1/admin/employees/account/detail` in production. Keep it separate from `KATALIS_BASE_URL`: `api.katalis.info` does not expose this route and returns `404`.
+
+Consul is configuration source of truth. Set both keys in `new-config/psp-booking-room-be/setting`, then deploy/restart backend. Confirm startup log contains `account_detail_base_url=https://api.teknologikartu.com` and Attendance path. If response still contains `/api/v1/admin/employees/account/detail`, running container is old backend image or Consul still sets legacy `KATALIS_ACCOUNT_DETAIL_PATH`; redeploy after correcting Consul.
+
 ## Configuration
 
 Set this production configuration before deploying:

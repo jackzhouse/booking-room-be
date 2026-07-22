@@ -6,9 +6,6 @@ import httpx
 
 from app.core.config import settings
 
-DEFAULT_ACCOUNT_DETAIL_FALLBACK_PATH = "/api/v1/admin/employees/account/detail"
-
-
 class ExternalAuthError(Exception):
     def __init__(self, message: str, status_code: int = 503, endpoint: Optional[str] = None):
         super().__init__(message)
@@ -235,10 +232,13 @@ class KatalisService:
         return urljoin((base_url or self.base_url), path.lstrip("/"))
 
     def get_account_detail_paths(self) -> List[str]:
-        paths = [settings.KATALIS_ACCOUNT_DETAIL_PATH]
-        if settings.KATALIS_ACCOUNT_DETAIL_PATH != DEFAULT_ACCOUNT_DETAIL_FALLBACK_PATH:
-            paths.append(DEFAULT_ACCOUNT_DETAIL_FALLBACK_PATH)
-        return paths
+        """Return only configured account-detail endpoint.
+
+        Katalis account detail lives on the Attendance API.  Retrying the
+        obsolete non-Attendance path on a 404 both cannot recover production
+        auth and hides a wrong account-detail base URL in the final error.
+        """
+        return [settings.KATALIS_ACCOUNT_DETAIL_PATH]
 
     async def request_json(
         self,

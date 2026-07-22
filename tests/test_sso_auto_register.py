@@ -319,6 +319,30 @@ async def test_get_current_employee_exchanges_token_before_fetching_detail(monke
 
 
 @pytest.mark.asyncio
+async def test_get_current_employee_does_not_retry_obsolete_detail_path_on_404(monkeypatch):
+    calls = []
+
+    async def fake_request_json(path: str, token: str, params=None, base_url=None):
+        calls.append((path, token, base_url))
+        return FakeHttpResponse(404, {})
+
+    monkeypatch.setattr(katalis_service, "request_json", fake_request_json)
+
+    with pytest.raises(auth_module.ExternalAuthError) as exc_info:
+        await katalis_service.get_current_employee("production-token")
+
+    assert exc_info.value.status_code == 404
+    assert exc_info.value.endpoint == auth_module.settings.KATALIS_ACCOUNT_DETAIL_PATH
+    assert calls == [
+        (
+            auth_module.settings.KATALIS_ACCOUNT_DETAIL_PATH,
+            "production-token",
+            katalis_service.account_detail_base_url,
+        )
+    ]
+
+
+@pytest.mark.asyncio
 async def test_employee_and_division_sync_use_attendance_directory_api(monkeypatch):
     calls = []
 

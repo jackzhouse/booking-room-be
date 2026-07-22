@@ -92,3 +92,8 @@ def load_settings_from_consul():
 # Load settings from Consul and create Settings instance
 consul_settings = load_settings_from_consul()
 settings = Settings(**consul_settings)
+logger.info(
+    "Katalis SSO config loaded: account_detail_base_url=%s account_detail_path=%s",
+    settings.KATALIS_ACCOUNT_DETAIL_BASE_URL,
+    settings.KATALIS_ACCOUNT_DETAIL_PATH,
+)
