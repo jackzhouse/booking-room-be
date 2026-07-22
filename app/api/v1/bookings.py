@@ -120,7 +120,8 @@ async def get_booking(
 ):
     """
     Get details of a specific booking.
-    User can only view their own bookings.
+    Any authenticated user can view booking details from the shared calendar.
+    Mutating endpoints remain restricted to the booking owner or an admin.
     """
     try:
         # Convert string ID to ObjectId
@@ -136,13 +137,6 @@ async def get_booking(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Booking not found"
-        )
-    
-    # Check ownership or admin
-    if booking.user_id != current_user.id and not current_user.is_admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="You don't have permission to view this booking"
         )
     
     return convert_booking_to_response(booking)

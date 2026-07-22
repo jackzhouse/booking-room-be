@@ -150,7 +150,7 @@ GET /api/v1/telegram-groups
 |----------|--------|---------|---------|
 | `GET /bookings` | **All authenticated users** | All active bookings, including drafts | **View schedule (UPDATED)** |
 | `GET /bookings/my` | Current user only | User's own bookings | View personal bookings |
-| `GET /bookings/{id}` | Owner or admin | Specific booking | View booking details |
+| `GET /bookings/{id}` | **All authenticated users** | Specific booking | View shared-calendar booking details (read-only) |
 | `POST /bookings` | All authenticated users | New booking | Create booking |
 | `PUT /bookings/{id}` | Owner or admin | Updated booking | Update booking |
 | `DELETE /bookings/{id}` | Owner or admin | Cancelled booking | Cancel booking |
