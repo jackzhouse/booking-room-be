@@ -109,6 +109,26 @@ async def add_telegram_group(group_id: int, group_name: str) -> TelegramGroup:
     return group
 
 
+async def update_telegram_group(
+    group_id: int,
+    group_name: Optional[str] = None,
+    is_active: Optional[bool] = None,
+) -> Optional[TelegramGroup]:
+    """Update mutable Telegram group fields and return the saved group."""
+    group = await TelegramGroup.find_one(TelegramGroup.group_id == group_id)
+    if not group:
+        return None
+
+    if group_name is not None:
+        group.group_name = group_name
+    if is_active is not None:
+        group.is_active = is_active
+
+    group.updated_at = datetime.now(timezone.utc)
+    await group.save()
+    return group
+
+
 async def delete_telegram_group(group_id: int) -> bool:
     """
     Delete a Telegram group by ID.

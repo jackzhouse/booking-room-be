@@ -6,12 +6,14 @@ from app.models.telegram_group import TelegramGroup
 from app.models.setting import Setting
 from app.schemas.telegram_group import (
     TelegramGroupCreate,
+    TelegramGroupUpdate,
     TelegramGroupResponse,
     TelegramGroupListResponse
 )
 from app.services.telegram_service import (
     get_all_telegram_groups,
     add_telegram_group,
+    update_telegram_group,
     delete_telegram_group,
     test_notification,
     get_telegram_chat_info
@@ -171,6 +173,26 @@ async def delete_telegram_group_endpoint(
         )
     
     return None
+
+
+@router.put("/{group_id}", response_model=TelegramGroupResponse)
+async def update_telegram_group_endpoint(
+    group_id: int,
+    group_data: TelegramGroupUpdate,
+    current_user: User = Depends(get_current_admin_user),
+):
+    """Update an existing Telegram group's display name or active status (Admin only)."""
+    group = await update_telegram_group(
+        group_id,
+        **group_data.model_dump(exclude_unset=True),
+    )
+    if not group:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Telegram group with ID {group_id} not found",
+        )
+
+    return convert_group_to_response(group)
 
 
 @router.post("/{group_id}/test", status_code=status.HTTP_200_OK)
