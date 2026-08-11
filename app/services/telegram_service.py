@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime, timezone
+from html import escape
 from typing import Optional, List, Dict
 from telegram import Bot, Chat
 from telegram.error import TelegramError
@@ -13,6 +14,58 @@ logger = logging.getLogger(__name__)
 bot = Bot(token=settings.BOT_TOKEN)
 
 
+def _display_value(value: object) -> str:
+    """Return an HTML-safe notification value with a stable empty fallback."""
+    if value is None or value == "":
+        return "-"
+    return escape(str(value), quote=False)
+
+
+def _format_pic(booking: Booking) -> str:
+    full_name = booking.user_snapshot.full_name or "-"
+    username = _get_user_display_name(booking)
+    if not username or username == booking.user_snapshot.full_name:
+        return full_name
+    return f"{full_name} (@{str(username).lstrip('@')})"
+
+
+def _render_notification(
+    title: str,
+    fields: list[tuple[str, str, object]],
+    action: str,
+    booking_number: Optional[str] = None,
+    blocks: Optional[list[tuple[str, str, object]]] = None,
+) -> str:
+    """Render every Telegram notification using one HTML-safe visual structure."""
+    header = f"<b>{title}</b>"
+    reference = f"\n<code>#{_display_value(booking_number)}</code>" if booking_number else ""
+    details = "\n".join(
+        f"<b>{label}:</b> {_display_value(value)}"
+        for _icon, label, value in fields
+    )
+    detail_blocks = "\n\n".join(
+        f"<b>{label}:</b>\n{_display_value(value)}"
+        for _icon, label, value in blocks or []
+    )
+    body = f"{details}\n\n{detail_blocks}" if detail_blocks else details
+    return f"{header}{reference}\n\n{body}\n\n<b>Tindakan:</b>\n{_display_value(action)}"
+
+
+def _booking_fields(booking: Booking) -> list[tuple[str, str, object]]:
+    return [
+        ("📍", "Ruang", booking.room_snapshot.name),
+        ("📅", "Tanggal", format_date_indonesian(booking.start_time)),
+        ("⏰", "Waktu", format_time_range(booking.start_time, booking.end_time)),
+        ("👤", "PIC", _format_pic(booking)),
+        ("🏢", "Divisi", _get_division_display(booking)),
+        ("📝", "Keperluan", booking.title),
+    ]
+
+
+def _booking_description_block(booking: Booking) -> list[tuple[str, str, object]]:
+    return [("📄", "Deskripsi", booking.description)]
+
+
 def _get_user_display_name(booking: Booking) -> str:
     if booking.user_snapshot.external_user_id:
         return booking.user_snapshot.telegram_username or booking.user_snapshot.full_name
@@ -24,14 +77,31 @@ def _get_division_display(booking: Booking) -> str:
     return booking.division or booking.user_snapshot.division or "-"
 
 
-async def send_telegram_message(chat_id: int, message: str, parse_mode: str = "Markdown") -> bool:
+def _format_consumption_facilities(booking: Booking) -> str:
+    facilities = getattr(booking, "consumption_facilities", None) or []
+    if not facilities:
+        return "-"
+    return "\n".join(f"• {facility}" for facility in facilities)
+
+
+def _format_consumption_note(booking: Booking) -> str:
+    """Render each non-empty consumption line as one consistent list item."""
+    note = getattr(booking, "consumption_note", None)
+    if not note or not str(note).strip():
+        return "-"
+
+    items = [line.strip().lstrip("•- ").strip() for line in str(note).splitlines()]
+    return "\n".join(f"• {item}" for item in items if item) or "-"
+
+
+async def send_telegram_message(chat_id: int, message: str, parse_mode: str = "HTML") -> bool:
     """
     Send a message to a Telegram chat.
     
     Args:
         chat_id: Telegram chat ID (can be negative for groups)
         message: Message content
-        parse_mode: Format (Markdown or HTML)
+        parse_mode: Telegram parse mode; HTML by default for formatted notifications.
     
     Returns:
         True if successful, False otherwise
@@ -244,6 +314,15 @@ def format_time_range(start: datetime, end: datetime) -> str:
     return f"{start.strftime('%H:%M')} – {end.strftime('%H:%M')} WIB"
 
 
+def format_time_indonesian(dt: datetime) -> str:
+    """Format one datetime in Asia/Jakarta for notification detail rows."""
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(settings.timezone)
+    else:
+        dt = dt.replace(tzinfo=timezone.utc).astimezone(settings.timezone)
+    return f"{dt.strftime('%H:%M')} WIB"
+
+
 async def notify_new_booking(booking: Booking):
     """
     Send notification for new booking to Telegram group.
@@ -252,18 +331,12 @@ async def notify_new_booking(booking: Booking):
     # Use telegram_group_id from booking (snapshot)
     group_id = booking.telegram_group_id
     
-    username_display = _get_user_display_name(booking)
-    division = _get_division_display(booking)
-    
-    message = (
-        f"📍 INFO BOOKING: {booking.room_snapshot.name.upper()}\n\n"
-        f"Informasi reservasi untuk hari {format_date_indonesian(booking.start_time)}:\n\n"
-        f"◽️ Jam: {format_time_range(booking.start_time, booking.end_time)}\n"
-        f"◽️ Divisi: {division}\n"
-        f"◽️ Keperluan: {booking.title}\n"
-        f"◽️ Deskripsi: {booking.description if booking.description else '-'}\n\n"
-        f"◽️ PIC: {booking.user_snapshot.full_name} — @{username_display}\n\n"
-        f"Rekan-rekan yang membutuhkan ruangan pada jam tersebut diharapkan dapat berkoordinasi langsung dengan @{username_display}. Terima kasih."
+    message = _render_notification(
+        "TKI ROOM - BOOKING BARU",
+        _booking_fields(booking),
+        "Koordinasikan penggunaan ruang dengan PIC.",
+        booking.booking_number,
+        _booking_description_block(booking),
     )
     
     await send_telegram_message(group_id, message)
@@ -286,20 +359,12 @@ async def notify_booking_updated(
     Uses telegram_group_id from booking object.
     """
     group_id = chat_id if chat_id is not None else booking.telegram_group_id
-    username_display = _get_user_display_name(booking)
-    division = _get_division_display(booking)
-    
-    message = (
-        f"📍 UPDATE BOOKING: {booking.room_snapshot.name.upper()}\n"
-        f"#{booking.booking_number}\n\n"
-        f"Field yang berubah: {_format_changed_fields(changed_fields)}\n\n"
-        f"Informasi reservasi untuk hari {format_date_indonesian(booking.start_time)}:\n\n"
-        f"◽️ Jam: {format_time_range(booking.start_time, booking.end_time)}\n"
-        f"◽️ Divisi: {division}\n"
-        f"◽️ Keperluan: {booking.title}\n"
-        f"◽️ Deskripsi: {booking.description if booking.description else '-'}\n\n"
-        f"◽️ PIC: {booking.user_snapshot.full_name} — @{username_display}\n\n"
-        f"Mohon perhatikan perubahan jadwal. Terima kasih."
+    message = _render_notification(
+        "TKI ROOM - PERUBAHAN BOOKING",
+        [("🔄", "Perubahan", _format_changed_fields(changed_fields)), *_booking_fields(booking)],
+        "Perhatikan perubahan jadwal ini.",
+        booking.booking_number,
+        _booking_description_block(booking),
     )
     
     await send_telegram_message(group_id, message)
@@ -309,18 +374,12 @@ async def notify_booking_target_removed(booking: Booking, chat_id: int, target_l
     """
     Notify an old target group that the booking is no longer routed there.
     """
-    username_display = _get_user_display_name(booking)
-
-    message = (
-        f"📍 UPDATE TARGET BOOKING\n"
-        f"#{booking.booking_number}\n\n"
-        f"Booking ini tidak lagi dikirim ke {target_label} ini.\n"
-        f"Mohon abaikan referensi lama untuk jadwal berikut:\n\n"
-        f"◽️ Ruang: {booking.room_snapshot.name}\n"
-        f"◽️ Hari: {format_date_indonesian(booking.start_time)}\n"
-        f"◽️ Jam: {format_time_range(booking.start_time, booking.end_time)}\n"
-        f"◽️ Keperluan: {booking.title}\n"
-        f"◽️ PIC: {booking.user_snapshot.full_name} — @{username_display}"
+    message = _render_notification(
+        "TKI ROOM - PERUBAHAN TUJUAN NOTIFIKASI",
+        [("📨", "Tujuan sebelumnya", target_label), *_booking_fields(booking)],
+        "Abaikan referensi lama untuk jadwal ini.",
+        booking.booking_number,
+        _booking_description_block(booking),
     )
 
     await send_telegram_message(chat_id, message)
@@ -332,19 +391,12 @@ async def notify_booking_cancelled(booking: Booking, chat_id: Optional[int] = No
     Uses telegram_group_id from booking object.
     """
     group_id = chat_id if chat_id is not None else booking.telegram_group_id
-    username_display = _get_user_display_name(booking)
-    division = _get_division_display(booking)
-    
-    message = (
-        f"📍 CANCEL BOOKING: {booking.room_snapshot.name.upper()}\n"
-        f"#{booking.booking_number}\n\n"
-        f"Reservasi telah dibatalkan:\n\n"
-        f"◽️ Jam: {format_time_range(booking.start_time, booking.end_time)}\n"
-        f"◽️ Divisi: {division}\n"
-        f"◽️ Keperluan: {booking.title}\n"
-        f"◽️ Deskripsi: {booking.description if booking.description else '-'}\n\n"
-        f"◽️ PIC: @{username_display}\n\n"
-        f"Ruangan kini tersedia pada jam tersebut. Terima kasih."
+    message = _render_notification(
+        "TKI ROOM - PEMBATALAN BOOKING",
+        _booking_fields(booking),
+        "Ruangan kini tersedia pada jam tersebut.",
+        booking.booking_number,
+        _booking_description_block(booking),
     )
     
     await send_telegram_message(group_id, message)
@@ -365,36 +417,46 @@ async def test_notification(group_id: int) -> bool:
     if not group:
         return False
     
-    message = (
-        f"✅ *Test Notifikasi*\n\n"
-        f"Notifikasi dari Booking Room Backend berhasil!\n"
-        f"Grup: {group.group_name}\n"
-        f"Waktu: {datetime.now(timezone.utc).astimezone(settings.timezone).strftime('%d/%m/%Y %H:%M:%S')}"
+    message = _render_notification(
+        "TKI ROOM - TEST NOTIFIKASI",
+        [
+            ("👥", "Grup", group.group_name),
+            ("🕒", "Waktu", datetime.now(timezone.utc).astimezone(settings.timezone).strftime("%d/%m/%Y %H:%M:%S WIB")),
+        ],
+        "Notifikasi Booking Room berhasil dikirim.",
     )
     
     return await send_telegram_message(group_id, message)
 
 
-async def notify_consumption_group(booking: Booking):
+async def notify_consumption_group(booking: Booking, is_update: bool = False):
     """
     Send notification to consumption group.
     
     Args:
         booking: Booking object with consumption details
+        is_update: Whether notification represents a published booking update
     """
     if not booking.consumption_group_id:
         return
     
-    username_display = _get_user_display_name(booking)
-    
-    message = (
-        f"🍽️ Permintaan Konsumsi Meeting\n\n"
-        f"📍 Ruang: {booking.room_snapshot.name}\n"
-        f"📅 Hari: {format_date_indonesian(booking.start_time)}\n"
-        f"⏰ Jam: {format_time_range(booking.start_time, booking.end_time)}\n\n"
-        f"👤 PIC: {booking.user_snapshot.full_name} @{username_display}\n\n"
-        f"📝 Detail Konsumsi:\n{booking.consumption_note if booking.consumption_note else '-'}\n\n"
-        f"Mohon bantu menyiapkan konsumsi sesuai permintaan. Terima kasih."
+    title = (
+        "TKI ROOM - PERUBAHAN KONSUMSI"
+        if is_update
+        else "TKI ROOM - PERMINTAAN KONSUMSI"
+    )
+    message = _render_notification(
+        title,
+        [
+            *_booking_fields(booking),
+        ],
+        "Siapkan konsumsi sesuai permintaan.",
+        booking.booking_number,
+        [
+            *_booking_description_block(booking),
+            ("🏷️", "Fasilitas", _format_consumption_facilities(booking)),
+            ("🍴", "Konsumsi", _format_consumption_note(booking)),
+        ],
     )
     
     await send_telegram_message(booking.consumption_group_id, message)
@@ -408,15 +470,12 @@ async def notify_consumption_group_cancelled(booking: Booking, chat_id: Optional
     if not group_id:
         return
 
-    username_display = _get_user_display_name(booking)
-
-    message = (
-        f"🍽️ Pembatalan Konsumsi Meeting\n\n"
-        f"📍 Ruang: {booking.room_snapshot.name}\n"
-        f"📅 Hari: {format_date_indonesian(booking.start_time)}\n"
-        f"⏰ Jam: {format_time_range(booking.start_time, booking.end_time)}\n\n"
-        f"👤 PIC: {booking.user_snapshot.full_name} @{username_display}\n\n"
-        f"Reservasi dibatalkan, mohon hentikan persiapan konsumsi bila sudah dijadwalkan. Terima kasih."
+    message = _render_notification(
+        "TKI ROOM - PEMBATALAN KONSUMSI",
+        _booking_fields(booking),
+        "Hentikan persiapan konsumsi bila sudah dijadwalkan.",
+        booking.booking_number,
+        _booking_description_block(booking),
     )
 
     await send_telegram_message(group_id, message)
@@ -432,18 +491,12 @@ async def notify_verification_group_booking(booking: Booking):
     if not booking.verification_group_id:
         return
     
-    username_display = _get_user_display_name(booking)
-    division = _get_division_display(booking)
-    
-    message = (
-        f"📍 INFO BOOKING: {booking.room_snapshot.name.upper()}\n\n"
-        f"Informasi reservasi untuk hari {format_date_indonesian(booking.start_time)}:\n\n"
-        f"◽️ Jam: {format_time_range(booking.start_time, booking.end_time)}\n"
-        f"◽️ Divisi: {division}\n"
-        f"◽️ Keperluan: {booking.title}\n"
-        f"◽️ Deskripsi: {booking.description if booking.description else '-'}\n\n"
-        f"◽️ PIC: {booking.user_snapshot.full_name} — @{username_display}\n\n"
-        f"Rekan-rekan yang membutuhkan ruangan pada jam tersebut diharapkan dapat berkoordinasi langsung dengan @{username_display}. Terima kasih."
+    message = _render_notification(
+        "TKI ROOM - BOOKING BARU",
+        _booking_fields(booking),
+        "Koordinasikan penggunaan ruang dengan PIC.",
+        booking.booking_number,
+        _booking_description_block(booking),
     )
     
     await send_telegram_message(booking.verification_group_id, message)
@@ -469,25 +522,18 @@ async def notify_verification_group_cleanup(booking: Booking):
     if not booking.verification_group_id:
         return
     
-    # Format user info
-    user_info = f"{booking.user_snapshot.full_name}"
-    if booking.user_snapshot.division:
-        user_info += f" — ({booking.user_snapshot.division})"
-    
-    # Convert end_time to Asia/Jakarta timezone for time display
-    end_time_jkt = booking.end_time
-    if end_time_jkt.tzinfo is not None:
-        end_time_jkt = end_time_jkt.astimezone(settings.timezone)
-    elif end_time_jkt.tzinfo is None:
-        end_time_jkt = end_time_jkt.replace(tzinfo=timezone.utc)
-        end_time_jkt = end_time_jkt.astimezone(settings.timezone)
-    
-    message = (
-        f"✅ Meeting Selesai\n\n"
-        f"📍 Ruang: {booking.room_snapshot.name}\n"
-        f"📅 Meeting Berakhir: {format_date_indonesian(booking.end_time)} | {end_time_jkt.strftime('%H:%M')} WIB\n"
-        f"👤 PIC: {user_info}\n\n"
-        f"Mohon bantu dilakukan perapian/kebersihan ruangan setelah penggunaan. Terima kasih."
+    message = _render_notification(
+        "TKI ROOM - MEETING SELESAI",
+        [
+            ("📍", "Ruang", booking.room_snapshot.name),
+            ("📅", "Tanggal", format_date_indonesian(booking.end_time)),
+            ("⏰", "Selesai", format_time_indonesian(booking.end_time)),
+            ("👤", "PIC", _format_pic(booking)),
+            ("🏢", "Divisi", _get_division_display(booking)),
+            ("📝", "Keperluan", booking.title),
+        ],
+        "Rapikan dan bersihkan ruangan setelah penggunaan.",
+        booking.booking_number,
     )
     
     await send_telegram_message(booking.verification_group_id, message)

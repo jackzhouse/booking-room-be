@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Optional
+from typing import List, Optional
 from beanie import Document, Indexed
 from pydantic import BaseModel, ConfigDict, Field
 from bson import ObjectId
@@ -67,6 +67,7 @@ class Booking(Document):
     # Consumption fields
     has_consumption: bool = Field(default=False)  # Whether booking has consumption
     consumption_note: Optional[str] = None  # Consumption details note
+    consumption_facilities: List[str] = Field(default_factory=list)  # Selected room facilities for consumption prep
     consumption_group_id: Optional[int] = None  # Telegram group ID for consumption notifications
     verification_group_id: Optional[int] = None  # Telegram group ID for verification/cleanup notifications
     hrd_notified: bool = Field(default=False)  # Whether HRD has been notified for cleanup

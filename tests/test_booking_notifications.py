@@ -5,6 +5,7 @@ from bson import ObjectId
 
 from app.services import booking_service
 from app.services import scheduler_service
+from app.services import telegram_service
 
 
 class FakeBooking:
@@ -44,6 +45,7 @@ class FakeBooking:
         self.completed_at = None
         self.has_consumption = has_consumption
         self.consumption_note = "test"
+        self.consumption_facilities = ["AC", "Proyektor"]
         self.consumption_group_id = consumption_group_id
         self.verification_group_id = verification_group_id
         self.hrd_notified = False
@@ -80,6 +82,9 @@ def _install_common_mocks(monkeypatch, booking: FakeBooking, calls: list[str]):
     async def fake_get_group(_group_id):
         return SimpleNamespace(is_active=True)
 
+    async def fake_room_get(_room_id):
+        return SimpleNamespace(name="Kantin", is_active=True, facilities=["AC", "Proyektor", "TV"])
+
     async def fake_find_one(_query):
         return SimpleNamespace(value="-5181257488")
 
@@ -88,6 +93,7 @@ def _install_common_mocks(monkeypatch, booking: FakeBooking, calls: list[str]):
 
     monkeypatch.setattr(booking_service.Booking, "get", fake_booking_get)
     monkeypatch.setattr(booking_service.User, "get", fake_user_get)
+    monkeypatch.setattr(booking_service.Room, "get", fake_room_get)
     monkeypatch.setattr(booking_service, "get_telegram_group", fake_get_group)
     monkeypatch.setattr(booking_service.Setting, "find_one", fake_find_one)
     monkeypatch.setattr(booking_service, "create_history", fake_create_history)
@@ -244,11 +250,179 @@ def test_update_booking_disabling_consumption_notifies_cancel(monkeypatch):
             booking_id=str(booking.id),
             user_id=booking.user_id,
             has_consumption=False,
+            consumption_facilities=[],
         )
     )
 
     assert result.has_consumption is False
     assert calls == ["consumption_cancel"]
+
+
+def test_update_booking_saves_selected_consumption_facilities(monkeypatch):
+    booking = FakeBooking(published=True, has_consumption=False, consumption_group_id=None)
+    booking.consumption_facilities = []
+    calls: list[str] = []
+    notification_updates: list[bool] = []
+    _install_common_mocks(monkeypatch, booking, calls)
+
+    async def fake_notify_consumption_group(*args, **kwargs):
+        calls.append("consumption")
+        notification_updates.append(kwargs.get("is_update", False))
+
+    monkeypatch.setattr(booking_service, "notify_consumption_group", fake_notify_consumption_group)
+
+    result = asyncio.run(
+        booking_service.update_booking(
+            booking_id=str(booking.id),
+            user_id=booking.user_id,
+            consumption_facilities=["AC", "Proyektor"],
+        )
+    )
+
+    assert result.has_consumption is True
+    assert result.consumption_facilities == ["AC", "Proyektor"]
+    assert result.consumption_group_id == -5181257488
+    assert calls == ["consumption"]
+    assert notification_updates == [True]
+
+
+def test_update_booking_rejects_unavailable_consumption_facility(monkeypatch):
+    booking = FakeBooking(published=False)
+    calls: list[str] = []
+    _install_common_mocks(monkeypatch, booking, calls)
+
+    with_error = None
+    try:
+        asyncio.run(
+            booking_service.update_booking(
+                booking_id=str(booking.id),
+                user_id=booking.user_id,
+                consumption_facilities=["Karaoke"],
+            )
+        )
+    except ValueError as exc:
+        with_error = str(exc)
+
+    assert with_error == "Fasilitas tidak tersedia di ruangan: Karaoke"
+
+
+def test_consumption_notification_includes_selected_facilities(monkeypatch):
+    booking = FakeBooking(published=True)
+    booking.description = "Koordinasi target\nmingguan"
+    booking.consumption_note = "15 nasi box\n15 air mineral"
+    sent_messages: list[str] = []
+
+    async def fake_send_telegram_message(_chat_id, message, parse_mode="HTML"):
+        sent_messages.append(message)
+        return True
+
+    monkeypatch.setattr(telegram_service, "send_telegram_message", fake_send_telegram_message)
+
+    asyncio.run(telegram_service.notify_consumption_group(booking))
+
+    assert "<b>TKI ROOM - PERMINTAAN KONSUMSI</b>" in sent_messages[0]
+    assert "<b>Deskripsi:</b>\nKoordinasi target\nmingguan" in sent_messages[0]
+    assert "<b>Fasilitas:</b>\n• AC\n• Proyektor" in sent_messages[0]
+    assert "<b>Konsumsi:</b>\n• 15 nasi box\n• 15 air mineral" in sent_messages[0]
+
+
+def test_consumption_update_notification_uses_change_title_and_same_group(monkeypatch):
+    booking = FakeBooking(published=True)
+    sent_messages: list[tuple[int, str]] = []
+
+    async def fake_send_telegram_message(chat_id, message, parse_mode="HTML"):
+        sent_messages.append((chat_id, message))
+        return True
+
+    monkeypatch.setattr(telegram_service, "send_telegram_message", fake_send_telegram_message)
+
+    asyncio.run(telegram_service.notify_consumption_group(booking, is_update=True))
+
+    chat_id, message = sent_messages[0]
+    assert chat_id == booking.consumption_group_id
+    assert "<b>TKI ROOM - PERUBAHAN KONSUMSI</b>" in message
+    assert "<b>Deskripsi:</b>\nTests" in message
+    assert "<b>Fasilitas:</b>\n• AC\n• Proyektor" in message
+    assert "<b>Konsumsi:</b>\n• test" in message
+
+
+def test_consumption_note_normalizes_existing_bullets_and_blank_lines():
+    booking = FakeBooking(published=True)
+    booking.consumption_note = "• Minuman\n\n- Gorengan\nMakan siang"
+
+    assert telegram_service._format_consumption_note(booking) == "• Minuman\n• Gorengan\n• Makan siang"
+
+
+def test_notification_template_escapes_dynamic_values():
+    message = telegram_service._render_notification(
+        "TKI ROOM - BOOKING BARU",
+        [("📍", "Ruang", "Ruang <Utama> & A")],
+        "Hubungi PIC <sebelum> lanjut.",
+        "BK-<00061>",
+        [("📄", "Deskripsi", "Rapat <internal> & final")],
+    )
+
+    assert message == (
+        "<b>TKI ROOM - BOOKING BARU</b>\n"
+        "<code>#BK-&lt;00061&gt;</code>\n\n"
+        "<b>Ruang:</b> Ruang &lt;Utama&gt; &amp; A\n\n"
+        "<b>Deskripsi:</b>\nRapat &lt;internal&gt; &amp; final\n\n"
+        "<b>Tindakan:</b>\nHubungi PIC &lt;sebelum&gt; lanjut."
+    )
+
+
+def test_all_notification_types_use_html_template(monkeypatch):
+    booking = FakeBooking(published=True)
+    sent_messages: list[tuple[int, str, str]] = []
+
+    async def fake_send_telegram_message(chat_id, message, parse_mode="HTML"):
+        sent_messages.append((chat_id, message, parse_mode))
+        return True
+
+    async def fake_get_telegram_group(_group_id):
+        return SimpleNamespace(group_name="Grup Test")
+
+    monkeypatch.setattr(telegram_service, "send_telegram_message", fake_send_telegram_message)
+    monkeypatch.setattr(telegram_service, "get_telegram_group", fake_get_telegram_group)
+
+    async def send_all():
+        await telegram_service.notify_new_booking(booking)
+        await telegram_service.notify_booking_updated(booking, {}, changed_fields=["judul"])
+        await telegram_service.notify_booking_target_removed(booking, -1000000000001, "grup utama")
+        await telegram_service.notify_booking_cancelled(booking)
+        await telegram_service.test_notification(booking.telegram_group_id)
+        await telegram_service.notify_consumption_group(booking)
+        await telegram_service.notify_consumption_group(booking, is_update=True)
+        await telegram_service.notify_consumption_group_cancelled(booking)
+        await telegram_service.notify_verification_group_booking(booking)
+        await telegram_service.notify_verification_group_cancelled(booking)
+        await telegram_service.notify_verification_group_cleanup(booking)
+
+    asyncio.run(send_all())
+
+    expected_titles = [
+        "TKI ROOM - BOOKING BARU",
+        "TKI ROOM - PERUBAHAN BOOKING",
+        "TKI ROOM - PERUBAHAN TUJUAN NOTIFIKASI",
+        "TKI ROOM - PEMBATALAN BOOKING",
+        "TKI ROOM - TEST NOTIFIKASI",
+        "TKI ROOM - PERMINTAAN KONSUMSI",
+        "TKI ROOM - PERUBAHAN KONSUMSI",
+        "TKI ROOM - PEMBATALAN KONSUMSI",
+        "TKI ROOM - BOOKING BARU",
+        "TKI ROOM - PEMBATALAN BOOKING",
+        "TKI ROOM - MEETING SELESAI",
+    ]
+    assert [parse_mode for _, _, parse_mode in sent_messages] == ["HTML"] * len(expected_titles)
+    assert [
+        f"<b>{title}</b>" in message
+        for title, (_, message, _) in zip(expected_titles, sent_messages)
+    ] == [True] * len(expected_titles)
+    assert all("<b>Tindakan:</b>" in message for _, message, _ in sent_messages)
+    assert all(
+        not any(icon in message for icon in ["📍", "📅", "⏰", "👤", "🏢", "📝", "📄", "🏷️", "🍴", "ℹ️"])
+        for _, message, _ in sent_messages
+    )
 
 
 def test_create_booking_rejects_past_start_time(monkeypatch):

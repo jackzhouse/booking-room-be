@@ -167,6 +167,7 @@ async def create_new_booking(
             description=booking_data.description,
             has_consumption=booking_data.has_consumption,
             consumption_note=booking_data.consumption_note,
+            consumption_facilities=booking_data.consumption_facilities,
             consumption_group_id=booking_data.consumption_group_id,
             verification_group_id=booking_data.verification_group_id,
             is_admin=current_user.is_admin
@@ -237,6 +238,7 @@ async def update_existing_booking(
             end_time=booking_data.end_time,
             has_consumption=booking_data.has_consumption,
             consumption_note=booking_data.consumption_note,
+            consumption_facilities=booking_data.consumption_facilities,
             consumption_group_id=booking_data.consumption_group_id,
             verification_group_id=booking_data.verification_group_id,
             is_admin=current_user.is_admin

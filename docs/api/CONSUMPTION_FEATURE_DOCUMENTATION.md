@@ -78,9 +78,10 @@ Mohon bantu dilakukan perapian/kebersihan ruangan setelah penggunaan. Terima kas
 ## 🗄️ Perubahan Database
 
 ### Model Booking (`app/models/booking.py`)
-Tambah 5 field baru:
+Tambah 6 field baru:
 - `has_consumption: bool` - Apakah ada konsumsi
 - `consumption_note: Optional[str]` - Catatan detail konsumsi
+- `consumption_facilities: List[str]` - Fasilitas ruangan yang dipilih user untuk kebutuhan konsumsi
 - `consumption_group_id: Optional[int]` - ID grup konsumsi (snapshot)
 - `verification_group_id: Optional[int]` - ID grup verifikasi (snapshot)
 - `hrd_notified: bool = False` - Flag notifikasi perapian
@@ -104,6 +105,7 @@ Body request baru:
   "end_time": "2026-02-24T11:00:00+07:00",
   "has_consumption": true,
   "consumption_note": "Mohon disediakan 20 snack box",
+  "consumption_facilities": ["proyektor", "AC"],
   "consumption_group_id": -1001111111111,  // Optional, default dari setting
   "verification_group_id": -1002222222222  // Optional, default dari setting
 }
@@ -112,13 +114,14 @@ Body request baru:
 Behavior tambahan:
 - Booking baru tetap disimpan sebagai draft (`published=false`)
 - Booking baru akan ditolak jika `start_time` sudah lewat saat request dibuat
+- `consumption_facilities` harus cocok dengan fasilitas pada ruangan yang dipilih
 - Tidak ada auto-publish untuk draft yang sudah lewat start time
 
 #### POST `/api/v1/bookings/{id}/publish` - Publish Booking
 Mengirim multi-group notifications:
 1. Grup yang dipilih (selalu)
 2. Grup verifikasi (selalu, jika dikonfigurasi)
-3. Grup konsumsi (hanya jika has_consumption=true dan dikonfigurasi)
+3. Grup konsumsi (hanya jika ada konsumsi/fasilitas dan dikonfigurasi)
 
 Behavior tambahan:
 - Draft yang start time-nya sudah lewat tetap boleh dipublish manual

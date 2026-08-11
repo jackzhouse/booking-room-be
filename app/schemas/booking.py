@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -30,6 +30,7 @@ class BookingCreate(BaseModel):
     # Consumption fields
     has_consumption: bool = False
     consumption_note: Optional[str] = None
+    consumption_facilities: List[str] = Field(default_factory=list)
     consumption_group_id: Optional[int] = None  # Optional: override default consumption group
     verification_group_id: Optional[int] = None  # Optional: override default verification group
 
@@ -45,6 +46,7 @@ class BookingUpdate(BaseModel):
     end_time: Optional[datetime] = None
     has_consumption: Optional[bool] = None
     consumption_note: Optional[str] = None
+    consumption_facilities: Optional[List[str]] = None
     consumption_group_id: Optional[int] = None
     verification_group_id: Optional[int] = None
 
@@ -72,6 +74,7 @@ class BookingResponse(BaseModel):
     completed_at: Optional[datetime] = None
     has_consumption: bool = False
     consumption_note: Optional[str] = None
+    consumption_facilities: List[str] = Field(default_factory=list)
     consumption_group_id: Optional[int] = None
     verification_group_id: Optional[int] = None
     hrd_notified: bool = False

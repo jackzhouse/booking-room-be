@@ -33,6 +33,50 @@ from app.services.telegram_service import (
 from app.core.config import settings
 
 
+def _normalize_consumption_facilities(facilities: Optional[List[str]]) -> List[str]:
+    normalized: List[str] = []
+    seen = set()
+
+    for facility in facilities or []:
+        if not isinstance(facility, str):
+            continue
+        clean_facility = facility.strip()
+        if clean_facility and clean_facility not in seen:
+            normalized.append(clean_facility)
+            seen.add(clean_facility)
+
+    return normalized
+
+
+def _validate_room_facilities(room: Room, selected_facilities: List[str]):
+    room_facilities = set(getattr(room, "facilities", []) or [])
+    invalid_facilities = [
+        facility for facility in selected_facilities
+        if facility not in room_facilities
+    ]
+
+    if invalid_facilities:
+        raise ValueError(
+            "Fasilitas tidak tersedia di ruangan: "
+            + ", ".join(invalid_facilities)
+        )
+
+
+def _has_consumption_request(
+    has_consumption: Optional[bool],
+    consumption_note: Optional[str],
+    consumption_facilities: List[str],
+) -> bool:
+    if has_consumption is False and not consumption_facilities:
+        return False
+
+    return bool(
+        has_consumption
+        or (consumption_note and consumption_note.strip())
+        or consumption_facilities
+    )
+
+
 def _to_local_timezone(dt: datetime) -> datetime:
     if dt.tzinfo is None:
         return dt.replace(tzinfo=settings.timezone)
@@ -137,6 +181,7 @@ async def create_booking(
     description: Optional[str] = None,
     has_consumption: bool = False,
     consumption_note: Optional[str] = None,
+    consumption_facilities: Optional[List[str]] = None,
     consumption_group_id: Optional[int] = None,
     verification_group_id: Optional[int] = None,
     is_admin: bool = False
@@ -181,6 +226,13 @@ async def create_booking(
     # Capitalize title and format description (preserving URLs in lowercase)
     title = title.title() if title else title
     description = format_text_with_links(description)
+    selected_consumption_facilities = _normalize_consumption_facilities(consumption_facilities)
+    _validate_room_facilities(room, selected_consumption_facilities)
+    final_has_consumption = _has_consumption_request(
+        has_consumption,
+        consumption_note,
+        selected_consumption_facilities,
+    )
     
     # Check for conflicts
     has_conflict, conflicting_booking = await check_booking_conflict(
@@ -199,7 +251,7 @@ async def create_booking(
     final_verification_group_id = verification_group_id
     
     # Get default consumption group from settings if not provided and has consumption
-    if has_consumption and not final_consumption_group_id:
+    if final_has_consumption and not final_consumption_group_id:
         setting = await Setting.find_one(Setting.key == "default_consumption_group_id")
         if setting:
             try:
@@ -241,8 +293,9 @@ async def create_booking(
         end_time=end_time,
         status="active",
         published=False,  # Start as draft
-        has_consumption=has_consumption,
+        has_consumption=final_has_consumption,
         consumption_note=consumption_note,
+        consumption_facilities=selected_consumption_facilities,
         consumption_group_id=final_consumption_group_id,
         verification_group_id=final_verification_group_id
     )
@@ -350,6 +403,7 @@ def _build_changed_fields_map(
     verification_group_changed: bool = False,
     has_consumption_changed: bool = False,
     consumption_note_changed: bool = False,
+    consumption_facilities_changed: bool = False,
     consumption_group_changed: bool = False,
 ) -> dict[str, list[str]]:
     main_fields: list[str] = []
@@ -377,6 +431,8 @@ def _build_changed_fields_map(
         consumption_fields.append("status konsumsi")
     if consumption_note_changed:
         consumption_fields.append("isi konsumsi")
+    if consumption_facilities_changed:
+        consumption_fields.append("fasilitas konsumsi")
     if consumption_group_changed:
         consumption_fields.append("grup konsumsi")
 
@@ -399,6 +455,7 @@ async def update_booking(
     end_time: Optional[datetime] = None,
     has_consumption: Optional[bool] = None,
     consumption_note: Optional[str] = None,
+    consumption_facilities: Optional[List[str]] = None,
     consumption_group_id: Optional[int] = None,
     verification_group_id: Optional[int] = None,
     is_admin: bool = False
@@ -437,6 +494,7 @@ async def update_booking(
     old_verification_group_id = booking.verification_group_id
     old_has_consumption = booking.has_consumption
     old_consumption_note = booking.consumption_note
+    old_consumption_facilities = booking.consumption_facilities
     old_start_time = booking.start_time
     old_end_time = booking.end_time
     old_title = booking.title
@@ -463,6 +521,10 @@ async def update_booking(
         
         room_id_obj = ObjectId(room_id)
         room_name = room.name
+    else:
+        room = await Room.get(str(booking.room_id))
+        if not room:
+            raise ValueError("Ruangan tidak ditemukan")
     
     # Update fields
     update_data = {}
@@ -482,14 +544,25 @@ async def update_booking(
     if description is not None:
         update_data["description"] = format_text_with_links(description)
 
-    if has_consumption is not None:
-        update_data["has_consumption"] = has_consumption
-
     if consumption_note is not None:
         update_data["consumption_note"] = consumption_note
 
+    selected_consumption_facilities = (
+        _normalize_consumption_facilities(consumption_facilities)
+        if consumption_facilities is not None
+        else booking.consumption_facilities
+    )
+    _validate_room_facilities(room, selected_consumption_facilities)
+    final_has_consumption = _has_consumption_request(
+        has_consumption,
+        consumption_note if consumption_note is not None else booking.consumption_note,
+        selected_consumption_facilities,
+    )
+    update_data["has_consumption"] = final_has_consumption
+    update_data["consumption_facilities"] = selected_consumption_facilities
+
     final_consumption_group_id = consumption_group_id
-    if final_consumption_group_id is None and has_consumption is True:
+    if final_consumption_group_id is None and final_has_consumption:
         if booking.consumption_group_id is not None:
             final_consumption_group_id = booking.consumption_group_id
         else:
@@ -588,6 +661,7 @@ async def update_booking(
         )
         has_consumption_changed = has_consumption is not None and booking.has_consumption != old_has_consumption
         consumption_note_changed = consumption_note is not None and booking.consumption_note != old_consumption_note
+        consumption_facilities_changed = booking.consumption_facilities != old_consumption_facilities
         consumption_group_changed = (
             booking.has_consumption
             and booking.consumption_group_id != old_consumption_group_id
@@ -603,6 +677,7 @@ async def update_booking(
             verification_group_changed=verification_group_changed,
             has_consumption_changed=has_consumption_changed,
             consumption_note_changed=consumption_note_changed,
+            consumption_facilities_changed=consumption_facilities_changed,
             consumption_group_changed=consumption_group_changed,
         )
 
@@ -622,7 +697,7 @@ async def update_booking(
             )
 
         if changed_fields["consumption"] and booking.has_consumption and booking.consumption_group_id:
-            await notify_consumption_group(booking)
+            await notify_consumption_group(booking, is_update=True)
 
         if telegram_group_changed and old_telegram_group_id:
             await notify_booking_target_removed(booking, old_telegram_group_id, "grup utama")
