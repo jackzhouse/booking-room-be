@@ -170,7 +170,7 @@ The API will be available at:
 - `POST /api/v1/admin/settings/test-notification` - Test Telegram notification
 
 ### Telegram Bot
-- `POST /webhook/telegram` - Telegram webhook endpoint protected by `X-Telegram-Bot-Api-Secret-Token`
+- `POST /api/v1/webhook/telegram` - Telegram webhook endpoint protected by `X-Telegram-Bot-Api-Secret-Token`; set `WEBHOOK_BASE_URL` to the public Booking prefix (for example, `https://api.office.teknologikartu.com/booking`).
 
 ## Telegram Bot Commands
 

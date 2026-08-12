@@ -5,7 +5,6 @@ Gunakan script ini untuk memastikan webhook ter-set dengan konfigurasi yang bena
 """
 import asyncio
 import sys
-import os
 from telegram import Bot
 from app.core.config import settings
 
@@ -21,9 +20,8 @@ async def reset_webhook():
     await bot.delete_webhook()
     print(f"✅ Webhook deleted")
     
-    # Step 2: Set ulang webhook dengan konfigurasi yang benar
-    # Gunakan URL production langsung (Render)
-    webhook_url = os.environ.get("WEBHOOK_BASE_URL", "https://booking-room-be.onrender.com") + "/webhook/telegram"
+    # Step 2: Use the same configured public URL as application startup.
+    webhook_url = settings.webhook_url
     print(f"🔗 Setting webhook to: {webhook_url}")
 
     webhook_kwargs = {

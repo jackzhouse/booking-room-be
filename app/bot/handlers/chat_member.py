@@ -50,6 +50,8 @@ async def handle_bot_membership_update(update: Update, context: ContextTypes.DEF
         logger.exception("Failed to register Telegram group %s", group_id)
         return
 
+    logger.info("Telegram group registered successfully: group_id=%s name=%r", group_id, group_name)
+
     welcome_message = (
         "TKI Room Bot berhasil bergabung.\n\n"
         "Grup ini sudah terdaftar di sistem TKI Room.\n"
@@ -62,6 +64,8 @@ async def handle_bot_membership_update(update: Update, context: ContextTypes.DEF
         await chat.send_message(welcome_message)
     except Exception:
         logger.exception("Group %s registered but welcome message could not be sent", group_id)
+    else:
+        logger.info("Telegram group welcome message sent successfully: group_id=%s", group_id)
 
 
 def get_chat_member_handler():

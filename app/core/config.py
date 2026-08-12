@@ -69,10 +69,10 @@ class Settings(BaseSettings):
 
     @property
     def webhook_url(self) -> str:
-        """Full webhook URL for Telegram bot"""
+        """Full public Telegram webhook URL, behind the Booking API prefix."""
         if not self.BOT_TOKEN:
             return ""
-        return f"{self.WEBHOOK_BASE_URL}/webhook/telegram"
+        return f"{self.WEBHOOK_BASE_URL.rstrip('/')}/api/v1/webhook/telegram"
 
 def load_settings_from_consul():
     """Load settings from Consul key-value store"""

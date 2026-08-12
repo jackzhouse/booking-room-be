@@ -120,7 +120,8 @@ app.include_router(admin.router, prefix="/api/v1")
 app.include_router(telegram_groups.router, prefix="/api/v1")
 
 
-@app.post("/webhook/telegram")
+@app.post("/api/v1/webhook/telegram")
+@app.post("/webhook/telegram", include_in_schema=False)
 async def telegram_webhook(
     request: Request,
     x_telegram_bot_api_secret_token: str | None = Header(
@@ -133,17 +134,25 @@ async def telegram_webhook(
     Receives updates from Telegram and passes them to the bot handler.
     """
     if not is_valid_webhook_secret(x_telegram_bot_api_secret_token):
+        logger.warning("Telegram webhook rejected: invalid secret")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Invalid webhook secret",
         )
 
-    # Parse update from request
-    data = await request.json()
-    
-    # Process the update (handler will get bot instance)
-    await handle_webhook_update(data, None)
-    
+    try:
+        data = await request.json()
+        logger.info(
+            "Telegram webhook received: update_id=%s types=%s",
+            data.get("update_id"),
+            sorted(key for key in data if key != "update_id"),
+        )
+        await handle_webhook_update(data, None)
+    except Exception:
+        logger.exception("Telegram webhook processing failed")
+        raise
+
+    logger.info("Telegram webhook dispatched successfully: update_id=%s", data.get("update_id"))
     return {"status": "ok"}
 
 
