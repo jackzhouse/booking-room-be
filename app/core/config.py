@@ -23,7 +23,10 @@ class Settings(BaseSettings):
     SECRET_KEY: Optional[str] = None
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRE_MINUTES: int = 10080  # 7 days
-    FRONTEND_URL: str = "https://booking-meeting-flax.vercel.app"  # Production frontend URL
+    FRONTEND_URL: str = "https://booking-room.teknologikartu.com"  # Production frontend URL
+    # Comma-separated browser origins allowed to call the API. Keep explicit origins
+    # because credentials cannot be combined safely with a wildcard origin.
+    CORS_ORIGINS: Optional[str] = None
 
     # Timezone
     TIMEZONE: str = "Asia/Jakarta"  # Default timezone for the application

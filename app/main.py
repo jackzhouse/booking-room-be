@@ -103,10 +103,21 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Configure CORS
+# Configure CORS. Explicit origins required for credentialed browser requests.
+configured_cors_origins = settings.CORS_ORIGINS or ""
+cors_origins = [
+    origin.strip().rstrip("/")
+    for origin in configured_cors_origins.split(",")
+    if origin.strip()
+]
+if settings.FRONTEND_URL.rstrip("/") not in cors_origins:
+    cors_origins.append(settings.FRONTEND_URL.rstrip("/"))
+if "https://booking-room.teknologikartu.com" not in cors_origins:
+    cors_origins.append("https://booking-room.teknologikartu.com")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins= ["*"],   #[settings.FRONTEND_URL],  # In production, specify allowed origins
+    allow_origins=cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
