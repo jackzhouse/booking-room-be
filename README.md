@@ -139,9 +139,14 @@ The API will be available at:
 
 ## API Endpoints
 
+Public deployments may expose the same API behind the `/booking` prefix. If the
+proxy does not strip that prefix, the backend also accepts `/booking/api/v1/*`
+as an alias for `/api/v1/*`.
+
 ### Authentication
 - `POST /api/v1/auth/telegram` - Login via Telegram Login Widget
 - `POST /api/v1/auth/tma` - Login via Telegram Mini App
+- `POST /api/v1/auth/sso` - Login via external SSO token
 - `GET /api/v1/auth/me` - Get current user info
 
 ### Rooms

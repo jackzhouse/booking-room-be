@@ -130,6 +130,14 @@ app.include_router(rooms.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
 app.include_router(telegram_groups.router, prefix="/api/v1")
 
+# Public proxy compatibility: api.teknologikartu.com exposes Booking under /booking.
+# Keep internal /api/v1 routes while accepting unstripped /booking/api/v1 paths.
+app.include_router(auth.router, prefix="/booking/api/v1", include_in_schema=False)
+app.include_router(bookings.router, prefix="/booking/api/v1", include_in_schema=False)
+app.include_router(rooms.router, prefix="/booking/api/v1", include_in_schema=False)
+app.include_router(admin.router, prefix="/booking/api/v1", include_in_schema=False)
+app.include_router(telegram_groups.router, prefix="/booking/api/v1", include_in_schema=False)
+
 
 @app.post("/api/v1/webhook/telegram")
 @app.post("/webhook/telegram", include_in_schema=False)
