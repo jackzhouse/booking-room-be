@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 from app.core.config import settings
+from app.core.cors import build_cors_origins
 from app.core.database import connect_to_mongo, close_mongo_connection, init_beanie_models
 from app.api.v1 import auth, bookings, rooms, admin, telegram_groups
 from app.bot.webhook import set_webhook, delete_webhook, handle_webhook_update, is_valid_webhook_secret
@@ -103,17 +104,9 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Configure CORS. Explicit origins required for credentialed browser requests.
-configured_cors_origins = settings.CORS_ORIGINS or ""
-cors_origins = [
-    origin.strip().rstrip("/")
-    for origin in configured_cors_origins.split(",")
-    if origin.strip()
-]
-if settings.FRONTEND_URL.rstrip("/") not in cors_origins:
-    cors_origins.append(settings.FRONTEND_URL.rstrip("/"))
-if "https://booking-room.teknologikartu.com" not in cors_origins:
-    cors_origins.append("https://booking-room.teknologikartu.com")
+# CORS must use explicit origins because SSO requests carry credentials.
+# Set FRONTEND_URL and CORS_ORIGINS independently in staging and production.
+cors_origins = build_cors_origins(settings.CORS_ORIGINS, settings.FRONTEND_URL)
 
 app.add_middleware(
     CORSMiddleware,

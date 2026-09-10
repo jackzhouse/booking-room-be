@@ -15,3 +15,6 @@
 [2026-07-21 10:35] [booking-room] Profile completion API -> added authenticated PUT /api/v1/auth/me/profile, normalized Telegram username, documented endpoint, and verified backend Python compilation; admin PATCH /api/v1/admin/users/{userId} remains available.
 [2026-07-21 11:46] [booking-room] Logout endpoint repair -> added authenticated POST /api/v1/auth/logout, documented stateless logout behavior, and verified two route tests plus router registration.
 [2026-07-21 11:48] [booking-room] Logout runtime check -> port 8000 runs a non-reloading Uvicorn process that still returns 404; restart required to load the route.
+[2026-09-10 10:41] [booking-room] Origin-to-staging main sync verification -> fetched both remotes and confirmed origin/main is already an ancestor of staging/main; no merge or push required.
+[2026-09-10 10:43] [booking-room] Staging branch checkout -> created local staging-main tracking staging/main and switched working tree to it; remote unchanged.
+[2026-09-10 10:47] [booking-room] Origin-to-staging merge recheck -> refreshed both remotes and verified origin/main is an ancestor of staging/main; staging-main remains at staging/main head.

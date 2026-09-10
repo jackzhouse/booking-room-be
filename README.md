@@ -137,6 +137,20 @@ The API will be available at:
 - Alternative Docs: http://localhost:8000/redoc
 - Health Check: http://localhost:8000/health
 
+### CORS environments
+
+SSO uses credentialed requests, so origins are always explicit. Local Next.js
+origins `http://localhost:3000` and `http://127.0.0.1:3000` are allowed. Set
+these values independently for staging and production before deployment:
+
+```text
+FRONTEND_URL=https://your-environment-frontend.example.com
+CORS_ORIGINS=https://your-environment-frontend.example.com
+```
+
+Use comma-separated `CORS_ORIGINS` only when one environment has multiple
+intentional frontend domains. Do not use `*`.
+
 ## API Endpoints
 
 Public deployments may expose the same API behind the `/booking` prefix. If the
