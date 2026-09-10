@@ -158,14 +158,18 @@ async def sync_external_divisions(token: str) -> int:
     return synced
 
 
-async def sync_external_employees(token: str) -> int:
-    employees = await katalis_service.fetch_employees(token)
-    synced = 0
+async def sync_external_employees(token: str, *, on_fetch_page=None, on_progress=None) -> dict:
+    employees = await katalis_service.fetch_employees(token, on_page=on_fetch_page)
+    counts = {"fetched": len(employees), "processed": 0, "created": 0, "updated": 0, "skipped": 0}
+    seen_external_user_ids = set()
+    last_reported_index = 0
 
-    for employee in employees:
+    for index, employee in enumerate(employees, start=1):
         external_user_id = extract_external_user_id(employee)
-        if not external_user_id:
+        if not external_user_id or external_user_id in seen_external_user_ids:
+            counts["skipped"] += 1
             continue
+        seen_external_user_ids.add(external_user_id)
 
         existing = await User.find_one(User.external_user_id == external_user_id)
         if not existing:
@@ -176,11 +180,21 @@ async def sync_external_employees(token: str) -> int:
                 is_admin=False,
                 is_active=True,
             )
+            counts["created"] += 1
+        else:
+            counts["updated"] += 1
         populate_user_from_employee(existing, employee, allow_active_update=True)
         await existing.save()
-        synced += 1
+        counts["processed"] += 1
 
-    return synced
+        if on_progress is not None and (index % 10 == 0 or index == len(employees)):
+            await on_progress(index, len(employees), counts.copy())
+            last_reported_index = index
+
+    if on_progress is not None and last_reported_index != len(employees):
+        await on_progress(len(employees), len(employees), counts.copy())
+
+    return counts
 
 
 async def run_employee_sync(task_id: str, token: str):
@@ -203,12 +217,40 @@ async def run_employee_sync(task_id: str, token: str):
         task.updated_at = now_utc()
         await task.save()
 
-        employee_count = await sync_external_employees(token)
+        async def update_fetch_progress(page: int, total_pages: Optional[int], fetched: int):
+            task.progress = 45 if total_pages is None else min(80, 45 + round(35 * page / total_pages))
+            task.message = f"Mengambil employee halaman {page}" + (f" dari {total_pages}" if total_pages else "")
+            task.metadata = {
+                **task.metadata,
+                "employee_page": page,
+                "employee_total_pages": total_pages,
+                "employee_fetched": fetched,
+            }
+            task.updated_at = now_utc()
+            await task.save()
+
+        async def update_employee_progress(processed: int, total: int, counts: dict):
+            task.progress = min(95, 80 + round(15 * processed / max(total, 1)))
+            task.message = f"Menyimpan employee {processed} dari {total}"
+            task.metadata = {**task.metadata, "employee_total": total, **counts}
+            task.updated_at = now_utc()
+            await task.save()
+
+        employee_counts = await sync_external_employees(
+            token,
+            on_fetch_page=update_fetch_progress,
+            on_progress=update_employee_progress,
+        )
 
         task.status = "completed"
         task.progress = 100
         task.message = "Sinkronisasi employee selesai"
-        task.metadata = {**task.metadata, "division_count": division_count, "employee_count": employee_count}
+        task.metadata = {
+            **task.metadata,
+            "division_count": division_count,
+            "employee_count": employee_counts["processed"],
+            **employee_counts,
+        }
         task.completed_at = now_utc()
         task.updated_at = now_utc()
         await task.save()

@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
+import json
+from typing import Any, Awaitable, Callable, Dict, List, Optional
 from urllib.parse import urljoin
 
 import httpx
@@ -206,18 +207,30 @@ def populate_user_from_employee(user: Any, employee: Dict[str, Any], *, allow_ac
     return user
 
 
-def extract_total_pages(payload: Any) -> Optional[int]:
+def extract_total_pages(payload: Any, page_size: int = 100) -> Optional[int]:
     if not isinstance(payload, dict):
         return None
 
-    for key in ("totalPages", "total_pages", "pages"):
+    for key in ("totalPages", "total_pages", "pages", "pageCount", "page_count"):
         value = payload.get(key)
-        if isinstance(value, int):
+        if isinstance(value, int) and value > 0:
             return value
+        if isinstance(value, str) and value.isdigit() and int(value) > 0:
+            return int(value)
 
-    data = payload.get("data")
-    if isinstance(data, dict):
-        return extract_total_pages(data)
+    for key in ("totalElements", "total_elements", "total", "count"):
+        value = payload.get(key)
+        if isinstance(value, int) and value >= 0:
+            return max(1, (value + page_size - 1) // page_size)
+        if isinstance(value, str) and value.isdigit():
+            return max(1, (int(value) + page_size - 1) // page_size)
+
+    for key in ("data", "meta", "metadata", "pagination", "pageInfo", "page_info"):
+        nested = payload.get(key)
+        if isinstance(nested, dict):
+            total_pages = extract_total_pages(nested, page_size)
+            if total_pages is not None:
+                return total_pages
 
     return None
 
@@ -361,32 +374,48 @@ class KatalisService:
         size: int = 100,
         *,
         base_url: Optional[str] = None,
+        on_page: Optional[Callable[[int, Optional[int], int], Awaitable[None]]] = None,
     ) -> List[Dict[str, Any]]:
         items: List[Dict[str, Any]] = []
         page = 1
+        seen_page_signatures = set()
 
         while page <= 200:
             payload = await self.get_json(path, token, params={"page": page, "size": size}, base_url=base_url)
             page_items = extract_items(payload, preferred_key)
+            total_pages = extract_total_pages(payload, size)
+            if on_page is not None:
+                await on_page(page, total_pages, len(items) + len(page_items))
+
+            if not page_items:
+                break
+
+            page_signature = json.dumps(page_items, sort_keys=True, default=str, separators=(",", ":"))
+            if page_signature in seen_page_signatures:
+                break
+            seen_page_signatures.add(page_signature)
             items.extend(page_items)
 
-            total_pages = extract_total_pages(payload)
             if total_pages is not None:
                 if page >= total_pages:
                     break
-            elif len(page_items) < size:
-                break
 
             page += 1
 
         return items
 
-    async def fetch_employees(self, token: str) -> List[Dict[str, Any]]:
+    async def fetch_employees(
+        self,
+        token: str,
+        *,
+        on_page: Optional[Callable[[int, Optional[int], int], Awaitable[None]]] = None,
+    ) -> List[Dict[str, Any]]:
         return await self.fetch_paginated(
             settings.KATALIS_EMPLOYEES_PATH,
             token,
             "employees",
             base_url=self.directory_base_url,
+            on_page=on_page,
         )
 
     async def fetch_divisions(self, token: str) -> List[Dict[str, Any]]:
