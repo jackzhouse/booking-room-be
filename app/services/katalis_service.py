@@ -377,7 +377,8 @@ class KatalisService:
         on_page: Optional[Callable[[int, Optional[int], int], Awaitable[None]]] = None,
     ) -> List[Dict[str, Any]]:
         items: List[Dict[str, Any]] = []
-        page = 1
+        # Attendance directory API uses zero-based page indexes.
+        page = 0
         seen_page_signatures = set()
 
         while page <= 200:
@@ -397,7 +398,8 @@ class KatalisService:
             items.extend(page_items)
 
             if total_pages is not None:
-                if page >= total_pages:
+                # `totalPages` is a count; last zero-based page is N - 1.
+                if page >= total_pages - 1:
                     break
 
             page += 1

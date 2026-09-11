@@ -358,13 +358,13 @@ async def test_employee_and_division_sync_use_attendance_directory_api(monkeypat
         (
             auth_module.settings.KATALIS_DIVISIONS_PATH,
             "sync-token",
-            {"page": 1, "size": 100},
+            {"page": 0, "size": 100},
             katalis_service.directory_base_url,
         ),
         (
             auth_module.settings.KATALIS_EMPLOYEES_PATH,
             "sync-token",
-            {"page": 1, "size": 100},
+            {"page": 0, "size": 100},
             katalis_service.directory_base_url,
         ),
     ]
