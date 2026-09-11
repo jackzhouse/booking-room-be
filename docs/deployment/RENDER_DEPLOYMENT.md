@@ -37,23 +37,19 @@ After multiple attempts with Vercel, we've switched to Render.com because:
 
 ### Step 3: Configure Build and Deploy
 
-Render will auto-detect most settings. Verify these:
+Configure these settings in the Render dashboard:
 
 **Build & Deploy:**
 - **Name**: `booking-room-be` (or your preferred name)
 - **Region**: Choose region closest to your users
 - **Branch**: `main`
-- **Runtime**: `Python 3.12.0` (should auto-detect from `render.yaml`)
+- **Runtime**: `Docker`, using `./Dockerfile` with Python `3.11-slim-bookworm`
 
-**Build Command:**
-```
-pip install -r requirements.txt
-```
-
-**Start Command:**
-```
-uvicorn app.main:app --host 0.0.0.0 --port $PORT
-```
+**Docker configuration:**
+- Dockerfile: `./Dockerfile`
+- Docker context: `.`
+- Python image: `python:3.11-slim-bookworm`
+- Port: `10000` (injected through `PORT`)
 
 ### Step 4: Set Environment Variables
 
@@ -69,7 +65,6 @@ Scroll down to **"Environment"** section and add these variables:
 | `ADMIN_TELEGRAM_ID` | Your Telegram user ID | ✅ Yes |
 | `INITIAL_ADMIN_ACCOUNT_ID` | Katalis `accountId` for first Booking Room admin | ✅ For empty production DB |
 | `FRONTEND_URL` | Your frontend URL | ✅ Yes |
-| `PYTHON_VERSION` | `3.12.0` | ✅ Yes |
 
 **Generating SECRET_KEY:**
 ```bash

@@ -20,3 +20,4 @@
 [2026-09-10 10:47] [booking-room] Origin-to-staging merge recheck -> refreshed both remotes and verified origin/main is an ancestor of staging/main; staging-main remains at staging/main head.
 [2026-09-10 11:04] [booking-room] Origin-to-staging sync -> merged origin main 177153c with staging main and pushed verified staging main merge commit 8ef659d. Temporary merge worktree removed; local main unchanged.
 [2026-09-10 11:07] [booking-room] Origin-to-staging sync -> merged origin main 4fcc5bf with staging main and pushed verified staging main merge commit 0f63a3d. Temporary merge worktree removed; local main unchanged.
+[2026-09-10 15:59] [booking-room] Backend origin-to-staging sync -> merged origin main 7fc24d3 with staging main and pushed verified staging main merge commit 670c608. Temporary merge worktree removed; local main unchanged.

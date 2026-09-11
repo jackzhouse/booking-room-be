@@ -47,7 +47,7 @@ After extensive troubleshooting, we've decided to switch from Vercel to Render.c
 
 2. **Simpler Configuration** ✅
    - One `Procfile` file
-   - One `render.yaml` file
+   - Dockerfile-based configuration in the Render dashboard
    - Auto-detection of Python version and requirements
 
 3. **Better Documentation** ✅
@@ -78,7 +78,6 @@ After extensive troubleshooting, we've decided to switch from Vercel to Render.c
 
 ### Added (Render-specific)
 ```
-✅ render.yaml - Build and deploy configuration
 ✅ Procfile - Startup command
 ✅ [`RENDER_DEPLOYMENT.md`](../deployment/RENDER_DEPLOYMENT.md) - Deployment guide
 ✅ PLATFORM_SWITCH_SUMMARY.md - This file
