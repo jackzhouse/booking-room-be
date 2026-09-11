@@ -8,9 +8,10 @@ Sistem ini memungkinkan bot Telegram secara otomatis mendeteksi saat diinvite ke
 
 ### 1. Auto-Registration Grup
 - Saat bot diinvite ke grup Telegram baru, sistem otomatis:
-  - Mendeteksi event invite melalui update `chat_member`
+  - Mendeteksi event invite melalui update `my_chat_member`
   - Mengambil informasi grup (ID dan nama)
   - Membuat record baru di database
+  - Mengaktifkan grup agar langsung tersedia untuk booking
   - Mengirim pesan konfirmasi ke grup
 
 ### 2. Duplicate Protection
@@ -22,40 +23,38 @@ Sistem ini memungkinkan bot Telegram secara otomatis mendeteksi saat diinvite ke
 - Jika bot dihapus/kick dari grup:
   - Status grup diubah menjadi `is_active = False`
   - Data tetap tersimpan di database untuk histori
+- Jika bot diinvite kembali, record lama diaktifkan kembali tanpa membuat duplikat.
 
 ## 🏗️ Arsitektur
 
 ### File yang Dibuat/Diubah
 
-#### 1. Baru: `app/bot/handlers/chat_member.py`
+#### 1. `app/bot/handlers/chat_member.py`
 Handler untuk mendeteksi perubahan membership bot di grup.
 
 **Fungsi Utama:**
-- `handle_chat_member_update()` - Handle event chat_member
-- `get_chat_member_handler()` - Return ChatMemberHandler
+- `handle_bot_membership_update()` - Sinkronkan status grup dari event membership bot
+- `get_chat_member_handler()` - Return `ChatMemberHandler` untuk `MY_CHAT_MEMBER`
 
 **Logic:**
 ```python
 # Cek apakah update melibatkan bot sendiri
 if new_member.user.id == bot_id:
-    # Cek apakah status baru adalah "member"
-    if new_member.status == "member":
-        # Register grup ke database
-        new_group = TelegramGroup(
-            group_id=chat.id,
-            group_name=chat.title,
-            is_active=True
-        )
-        await new_group.insert()
+    if old_member.status in {"left", "kicked"} and new_member.status in {"member", "administrator"}:
+        # Register baru atau reaktivasi record lama.
+        ...
+    elif old_member.status in {"member", "administrator"} and new_member.status in {"left", "kicked"}:
+        # Nonaktifkan record lama, jangan hapus histori.
+        ...
 ```
 
 #### 2. Edit: `app/bot/webhook.py`
-Update konfigurasi webhook untuk menerima update `chat_member`.
+Update konfigurasi webhook untuk menerima update `my_chat_member`.
 
 **Perubahan:**
 - Import `get_chat_member_handler`
 - Registrasi `chat_member_handler` ke application
-- Update `allowed_updates` menjadi: `["message", "callback_query", "chat_member"]`
+- Update `allowed_updates` menjadi: `["message", "callback_query", "chat_member", "my_chat_member"]`
 
 ## 🔍 Cara Kerja
 
@@ -64,21 +63,22 @@ Update konfigurasi webhook untuk menerima update `chat_member`.
 1. **User invite bot ke grup**
    - User dengan admin access di grup menginvite bot
 
-2. **Telegram mengirim update chat_member**
-   - Telegram mengirim update dengan tipe `chat_member`
+2. **Telegram mengirim update my_chat_member**
+   - Telegram mengirim update dengan tipe `my_chat_member`
    - Update berisi info: `new_chat_member`, `old_chat_member`, `chat`
 
 3. **Handler menerima update**
    - `ChatMemberHandler` di `webhook.py` menangkap update
-   - Memicu fungsi `handle_chat_member_update()`
+   - Memicu fungsi `handle_bot_membership_update()`
 
 4. **Validasi**
    - Cek: Apakah update melibatkan bot sendiri?
-   - Cek: Apakah status baru adalah `member`?
+   - Cek: Apakah status berubah dari absent ke joined, atau joined ke absent?
    - Cek: Apakah grup sudah terdaftar di database?
 
 5. **Registrasi Grup**
    - Buat record baru di tabel `telegram_groups`
+   - Set `is_active = true`, sehingga grup langsung muncul di pilihan booking
    - Field yang disimpan:
      - `group_id`: ID Telegram grup
      - `group_name`: Nama grup
@@ -209,11 +209,11 @@ db.telegram_groups.find().pretty()
    curl https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getWebhookInfo
    ```
 
-2. Pastikan `chat_member` ada di `allowed_updates`:
+2. Pastikan `my_chat_member` ada di `allowed_updates`:
    ```json
    {
      "url": "https://your-domain.com/webhook/telegram/YOUR_TOKEN",
-     "allowed_updates": ["message", "callback_query", "chat_member"]
+     "allowed_updates": ["message", "callback_query", "chat_member", "my_chat_member"]
    }
    ```
 

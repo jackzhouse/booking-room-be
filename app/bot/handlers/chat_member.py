@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime, timezone
 from telegram import Update
 from telegram.constants import ChatMemberStatus
 from telegram.ext import ChatMemberHandler, ContextTypes
@@ -10,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 async def handle_bot_membership_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    """Register a group when Telegram reports that this bot has joined it."""
+    """Synchronize Telegram group activity from the bot's membership updates."""
     membership = update.my_chat_member
     if not membership:
         return
@@ -21,11 +22,6 @@ async def handle_bot_membership_update(update: Update, context: ContextTypes.DEF
 
     old_status = membership.old_chat_member.status
     new_status = membership.new_chat_member.status
-    if old_status not in {ChatMemberStatus.LEFT, ChatMemberStatus.BANNED}:
-        return
-    if new_status not in {ChatMemberStatus.MEMBER, ChatMemberStatus.ADMINISTRATOR}:
-        return
-
     chat = membership.chat
     if chat.type not in {"group", "supergroup"}:
         return
@@ -33,8 +29,40 @@ async def handle_bot_membership_update(update: Update, context: ContextTypes.DEF
     group_id = chat.id
     group_name = chat.title or f"Group {group_id}"
 
-    if await TelegramGroup.find_one({"group_id": group_id}):
-        logger.info("Telegram group %s already registered; preserving admin state", group_id)
+    joined_statuses = {ChatMemberStatus.MEMBER, ChatMemberStatus.ADMINISTRATOR}
+    absent_statuses = {ChatMemberStatus.LEFT, ChatMemberStatus.BANNED}
+
+    if old_status in joined_statuses and new_status in absent_statuses:
+        existing = await TelegramGroup.find_one({"group_id": group_id})
+        if not existing or not existing.is_active:
+            return
+
+        existing.is_active = False
+        existing.updated_at = datetime.now(timezone.utc)
+        try:
+            await existing.save()
+        except Exception:
+            logger.exception("Failed to deactivate Telegram group %s", group_id)
+        else:
+            logger.info("Telegram group deactivated after bot removal: group_id=%s", group_id)
+        return
+
+    if old_status not in absent_statuses or new_status not in joined_statuses:
+        return
+
+    existing = await TelegramGroup.find_one({"group_id": group_id})
+    if existing:
+        if not existing.is_active:
+            existing.is_active = True
+            existing.updated_at = datetime.now(timezone.utc)
+            try:
+                await existing.save()
+            except Exception:
+                logger.exception("Failed to reactivate Telegram group %s", group_id)
+                return
+            logger.info("Telegram group reactivated after bot rejoin: group_id=%s", group_id)
+        else:
+            logger.info("Telegram group %s already registered; preserving admin state", group_id)
         return
 
     try:

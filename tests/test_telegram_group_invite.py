@@ -61,6 +61,16 @@ def group_model(existing=None, insert_error=None):
                 raise insert_error
             type(self).inserted.append(self)
 
+        async def save(self):
+            type(self).saved.append(self)
+
+    FakeTelegramGroup.saved = []
+    if existing is not None:
+        async def save_existing():
+            FakeTelegramGroup.saved.append(existing)
+
+        existing.save = save_existing
+
     return FakeTelegramGroup
 
 
@@ -80,9 +90,9 @@ def test_invite_registers_new_group_and_sends_welcome(monkeypatch):
     assert "/schedule" in messages[0]
 
 
-def test_existing_group_preserves_admin_state_and_skips_welcome(monkeypatch):
+def test_existing_active_group_preserves_admin_state_and_skips_welcome(monkeypatch):
     fake_group = group_model(
-        existing=SimpleNamespace(group_id=GROUP_ID, group_name="Admin name", is_active=False)
+        existing=SimpleNamespace(group_id=GROUP_ID, group_name="Admin name", is_active=True)
     )
     monkeypatch.setattr(chat_member, "TelegramGroup", fake_group)
     update, messages = make_update()
@@ -90,6 +100,64 @@ def test_existing_group_preserves_admin_state_and_skips_welcome(monkeypatch):
     asyncio.run(chat_member.handle_bot_membership_update(update, context()))
 
     assert fake_group.inserted == []
+    assert messages == []
+
+
+def test_rejoining_inactive_group_reactivates_without_duplicate(monkeypatch):
+    existing = SimpleNamespace(
+        group_id=GROUP_ID,
+        group_name="Admin name",
+        is_active=False,
+        updated_at=None,
+    )
+    fake_group = group_model(existing=existing)
+    monkeypatch.setattr(chat_member, "TelegramGroup", fake_group)
+    update, messages = make_update()
+
+    asyncio.run(chat_member.handle_bot_membership_update(update, context()))
+
+    assert fake_group.inserted == []
+    assert len(fake_group.saved) == 1
+    assert existing.is_active is True
+    assert existing.updated_at is not None
+    assert messages == []
+
+
+def test_removing_bot_deactivates_existing_group(monkeypatch):
+    existing = SimpleNamespace(
+        group_id=GROUP_ID,
+        group_name="Ruang Rapat",
+        is_active=True,
+        updated_at=None,
+    )
+    fake_group = group_model(existing=existing)
+    monkeypatch.setattr(chat_member, "TelegramGroup", fake_group)
+    update, messages = make_update(
+        old_status=ChatMemberStatus.MEMBER,
+        new_status=ChatMemberStatus.LEFT,
+    )
+
+    asyncio.run(chat_member.handle_bot_membership_update(update, context()))
+
+    assert fake_group.inserted == []
+    assert len(fake_group.saved) == 1
+    assert existing.is_active is False
+    assert existing.updated_at is not None
+    assert messages == []
+
+
+def test_removing_unknown_group_is_noop(monkeypatch):
+    fake_group = group_model()
+    monkeypatch.setattr(chat_member, "TelegramGroup", fake_group)
+    update, messages = make_update(
+        old_status=ChatMemberStatus.ADMINISTRATOR,
+        new_status=ChatMemberStatus.BANNED,
+    )
+
+    asyncio.run(chat_member.handle_bot_membership_update(update, context()))
+
+    assert fake_group.inserted == []
+    assert fake_group.saved == []
     assert messages == []
 
 
