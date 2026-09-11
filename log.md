@@ -22,3 +22,5 @@
 [2026-09-10 11:07] [booking-room] Origin-to-staging sync -> merged origin main 4fcc5bf with staging main and pushed verified staging main merge commit 0f63a3d. Temporary merge worktree removed; local main unchanged.
 [2026-09-10 15:59] [booking-room] Backend origin-to-staging sync -> merged origin main 7fc24d3 with staging main and pushed verified staging main merge commit 670c608. Temporary merge worktree removed; local main unchanged.
 [2026-09-11 10:14] [booking-room] Backend origin-to-staging sync -> merged origin main 1e31abe with staging main and pushed verified staging main merge commit 5c8e9f7. Temporary merge worktree removed; local main unchanged.
+[2026-09-11 10:24] [booking-room] Backend origin-to-staging recheck -> refreshed refs; origin main 1e31abe is already contained in remote staging main 5c8e9f7. No merge or push needed.
+[2026-09-11 10:29] [booking-room] Backend origin-to-staging sync -> merged origin main 310041e with staging main; resolved Dockerfile-DC add/add conflict using origin Python 3.11/bookworm configuration, pushed merge 11488ca, and verified remote head.
