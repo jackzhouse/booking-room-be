@@ -4,7 +4,7 @@ Complete API documentation for room management endpoints. All endpoints require 
 
 ## Base URL
 ```
-https://booking-room-be.onrender.com/api/v1
+https://api-booking-room.tkilocal.biz.id/api/v1
 ```
 
 ## Authentication
@@ -23,7 +23,7 @@ All endpoints require `Authorization: Bearer {token}` header where `token` is th
 
 **Request:**
 ```bash
-curl -X GET "https://booking-room-be.onrender.com/api/v1/rooms?active_only=true" \
+curl -X GET "https://api-booking-room.tkilocal.biz.id/api/v1/rooms?active_only=true" \
   -H "Authorization: Bearer YOUR_JWT_TOKEN"
 ```
 
@@ -59,7 +59,7 @@ curl -X GET "https://booking-room-be.onrender.com/api/v1/rooms?active_only=true"
 
 **Request:**
 ```bash
-curl -X GET "https://booking-room-be.onrender.com/api/v1/rooms/507f1f77bcf86cd799439011" \
+curl -X GET "https://api-booking-room.tkilocal.biz.id/api/v1/rooms/507f1f77bcf86cd799439011" \
   -H "Authorization: Bearer YOUR_JWT_TOKEN"
 ```
 
@@ -95,7 +95,7 @@ curl -X GET "https://booking-room-be.onrender.com/api/v1/rooms/507f1f77bcf86cd79
 
 **Request:**
 ```bash
-curl -X GET "https://booking-room-be.onrender.com/api/v1/rooms/507f1f77bcf86cd799439011/schedule?start_date=2026-02-20&end_date=2026-02-20" \
+curl -X GET "https://api-booking-room.tkilocal.biz.id/api/v1/rooms/507f1f77bcf86cd799439011/schedule?start_date=2026-02-20&end_date=2026-02-20" \
   -H "Authorization: Bearer YOUR_JWT_TOKEN"
 ```
 
@@ -135,7 +135,7 @@ curl -X GET "https://booking-room-be.onrender.com/api/v1/rooms/507f1f77bcf86cd79
 
 **Request:**
 ```bash
-curl -X POST "https://booking-room-be.onrender.com/api/v1/rooms" \
+curl -X POST "https://api-booking-room.tkilocal.biz.id/api/v1/rooms" \
   -H "Authorization: Bearer YOUR_ADMIN_JWT_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -176,7 +176,7 @@ curl -X POST "https://booking-room-be.onrender.com/api/v1/rooms" \
 
 **Request:**
 ```bash
-curl -X PATCH "https://booking-room-be.onrender.com/api/v1/rooms/507f1f77bcf86cd799439011" \
+curl -X PATCH "https://api-booking-room.tkilocal.biz.id/api/v1/rooms/507f1f77bcf86cd799439011" \
   -H "Authorization: Bearer YOUR_ADMIN_JWT_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
@@ -208,7 +208,7 @@ curl -X PATCH "https://booking-room-be.onrender.com/api/v1/rooms/507f1f77bcf86cd
 
 **Request:**
 ```bash
-curl -X PATCH "https://booking-room-be.onrender.com/api/v1/rooms/507f1f77bcf86cd799439011/toggle" \
+curl -X PATCH "https://api-booking-room.tkilocal.biz.id/api/v1/rooms/507f1f77bcf86cd799439011/toggle" \
   -H "Authorization: Bearer YOUR_ADMIN_JWT_TOKEN"
 ```
 
@@ -231,7 +231,7 @@ curl -X PATCH "https://booking-room-be.onrender.com/api/v1/rooms/507f1f77bcf86cd
 
 **Request:**
 ```bash
-curl -X DELETE "https://booking-room-be.onrender.com/api/v1/rooms/507f1f77bcf86cd799439011" \
+curl -X DELETE "https://api-booking-room.tkilocal.biz.id/api/v1/rooms/507f1f77bcf86cd799439011" \
   -H "Authorization: Bearer YOUR_ADMIN_JWT_TOKEN"
 ```
 
@@ -276,7 +276,7 @@ curl -X DELETE "https://booking-room-be.onrender.com/api/v1/rooms/507f1f77bcf86c
 // Get all rooms
 const getRooms = async () => {
   const response = await fetch(
-    'https://booking-room-be.onrender.com/api/v1/rooms',
+    'https://api-booking-room.tkilocal.biz.id/api/v1/rooms',
     {
       headers: {
         'Authorization': `Bearer ${token}`
@@ -290,7 +290,7 @@ const getRooms = async () => {
 // Create new room (admin only)
 const createRoom = async (roomData) => {
   const response = await fetch(
-    'https://booking-room-be.onrender.com/api/v1/rooms',
+    'https://api-booking-room.tkilocal.biz.id/api/v1/rooms',
     {
       method: 'POST',
       headers: {
@@ -307,7 +307,7 @@ const createRoom = async (roomData) => {
 // Update room (admin only)
 const updateRoom = async (roomId, roomData) => {
   const response = await fetch(
-    `https://booking-room-be.onrender.com/api/v1/rooms/${roomId}`,
+    `https://api-booking-room.tkilocal.biz.id/api/v1/rooms/${roomId}`,
     {
       method: 'PATCH',
       headers: {
@@ -324,7 +324,7 @@ const updateRoom = async (roomId, roomData) => {
 // Delete room (admin only)
 const deleteRoom = async (roomId) => {
   const response = await fetch(
-    `https://booking-room-be.onrender.com/api/v1/rooms/${roomId}`,
+    `https://api-booking-room.tkilocal.biz.id/api/v1/rooms/${roomId}`,
     {
       method: 'DELETE',
       headers: {

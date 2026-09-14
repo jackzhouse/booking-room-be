@@ -2,6 +2,7 @@ import asyncio
 import logging
 from types import SimpleNamespace
 
+from app.bot.constants import TELEGRAM_ALLOWED_UPDATES
 from app.bot.webhook import is_valid_webhook_secret
 from app.models.booking import UserSnapshot
 from app.core.config import settings
@@ -37,6 +38,15 @@ def test_webhook_secret_optional_for_non_production(monkeypatch):
 
     assert is_valid_webhook_secret(None) is True
     assert is_valid_webhook_secret("anything") is True
+
+
+def test_telegram_allowed_updates_include_bot_membership_updates():
+    assert TELEGRAM_ALLOWED_UPDATES == [
+        "message",
+        "callback_query",
+        "chat_member",
+        "my_chat_member",
+    ]
 
 
 def test_webhook_logs_dispatch_success(monkeypatch, caplog):

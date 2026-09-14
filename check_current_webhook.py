@@ -30,7 +30,7 @@ def check_webhook_status():
     
     # Test webhook endpoint structure
     print(f"\n2. Checking webhook endpoint structure...")
-    print(f"   The webhook endpoint should be: {webhook_base}/webhook/telegram")
+    print(f"   The webhook endpoint should be: {webhook_base}/api/v1/webhook/telegram")
     
     # Without the bot token, we can't check the actual webhook status
     print(f"\n3. To check the actual Telegram webhook status, we need the bot token.")

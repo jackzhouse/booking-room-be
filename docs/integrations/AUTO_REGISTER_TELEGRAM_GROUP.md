@@ -139,10 +139,7 @@ MONGODB_DB_NAME=booking_app
 
 ### 2. Deploy Aplikasi
 ```bash
-# Deploy ke production
-vercel --prod
-
-# Atau run locally
+# Run locally
 python -m uvicorn app.main:app --reload
 ```
 
@@ -212,18 +209,15 @@ db.telegram_groups.find().pretty()
 2. Pastikan `my_chat_member` ada di `allowed_updates`:
    ```json
    {
-     "url": "https://your-domain.com/webhook/telegram/YOUR_TOKEN",
+     "url": "https://your-domain.com/api/v1/webhook/telegram",
      "allowed_updates": ["message", "callback_query", "chat_member", "my_chat_member"]
    }
    ```
 
 3. Cek logs aplikasi untuk error:
    ```bash
-   # Jika deploy di Vercel
-   vercel logs
-
-   # Jika run locally
-   # Logs akan muncul di terminal
+   # Saat run locally, logs muncul di terminal.
+   # Saat production, cek logs aplikasi pada platform aktif.
    ```
 
 ### Pesan welcome tidak muncul

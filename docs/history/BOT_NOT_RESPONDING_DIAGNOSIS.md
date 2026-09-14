@@ -6,8 +6,7 @@ The Telegram bot is not responding to ANY commands (`/start`, `/help`, `/authori
 ## Root Causes Identified
 
 ### 1. Configuration Issues
-- **FRONTEND_URL**: Currently set to `https://booking-meeting-flax.vercel.app` in default config
-  - ✅ Should be: `https://booking-room.tkilocal.biz.id`
+- **FRONTEND_URL**: Must match the active frontend domain in deployment configuration.
   
 - **WEBHOOK_BASE_URL**: Unknown (loaded from Consul)
   - ✅ Should be: `https://api-booking-room.tkilocal.biz.id`
@@ -69,7 +68,7 @@ If the response shows `url: ""`, then:
 - **Solution**: Set the webhook
 
 #### Scenario 2: Wrong Webhook URL
-If the response shows a URL different from `https://api-booking-room.tkilocal.biz.id/webhook/telegram/<TOKEN>`:
+If the response shows a URL different from `https://api-booking-room.tkilocal.biz.id/api/v1/webhook/telegram`:
 - **Problem**: Webhook is pointing to wrong endpoint
 - **Solution**: Reset the webhook
 
@@ -88,7 +87,7 @@ python set_webhook_manual.py
 **Option B: Using curl directly**
 ```bash
 # Replace <YOUR_BOT_TOKEN> with your actual bot token
-curl -F "url=https://api-booking-room.tkilocal.biz.id/webhook/telegram/<YOUR_BOT_TOKEN>" \
+curl -F "url=https://api-booking-room.tkilocal.biz.id/api/v1/webhook/telegram" \
   https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook
 ```
 
@@ -117,7 +116,7 @@ After setting the webhook:
    curl https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getWebhookInfo
    ```
 
-2. The `url` should now be: `https://api-booking-room.tkilocal.biz.id/webhook/telegram/<YOUR_BOT_TOKEN>`
+2. The `url` should now be: `https://api-booking-room.tkilocal.biz.id/api/v1/webhook/telegram`
 
 3. Test the bot in Telegram:
    - Send `/start`
@@ -128,10 +127,8 @@ After setting the webhook:
 
 The webhook should be set to:
 ```
-https://api-booking-room.tkilocal.biz.id/webhook/telegram/<YOUR_BOT_TOKEN>
+https://api-booking-room.tkilocal.biz.id/api/v1/webhook/telegram
 ```
-
-Where `<YOUR_BOT_TOKEN>` is your actual bot token from @BotFather.
 
 ## Common Issues & Solutions
 

@@ -7,6 +7,7 @@ import asyncio
 import sys
 from telegram import Bot
 from app.core.config import settings
+from app.bot.constants import TELEGRAM_ALLOWED_UPDATES
 
 
 async def reset_webhook():
@@ -27,7 +28,7 @@ async def reset_webhook():
     webhook_kwargs = {
         "url": webhook_url,
         "drop_pending_updates": True,
-        "allowed_updates": ["message", "callback_query", "chat_member", "my_chat_member"]
+        "allowed_updates": TELEGRAM_ALLOWED_UPDATES
     }
     if settings.WEBHOOK_SECRET_TOKEN:
         webhook_kwargs["secret_token"] = settings.WEBHOOK_SECRET_TOKEN
@@ -44,7 +45,7 @@ async def reset_webhook():
     print(f"   Max Connections: {webhook_info.max_connections}")
     
     # Verifikasi allowed_updates
-    expected_updates = ["message", "callback_query", "chat_member", "my_chat_member"]
+    expected_updates = TELEGRAM_ALLOWED_UPDATES
     if set(webhook_info.allowed_updates) == set(expected_updates):
         print(f"\n✅ Allowed updates configuration is CORRECT!")
     else:
@@ -60,8 +61,8 @@ if __name__ == "__main__":
         print(f"\n🎉 Webhook reset completed successfully!")
         print(f"\n⚠️  INSTRUKSI:")
         print(f"   1. Invite bot ke grup baru")
-        print(f"   2. Cek logs di Render Dashboard")
-        print(f"   3. Harapannya akan muncul log: '📨 Received CHAT_MEMBER update'")
+        print("   2. Cek logs aplikasi yang sedang berjalan")
+        print(f"   3. Harapannya akan muncul log: '📨 Received MY_CHAT_MEMBER update'")
     except Exception as e:
         print(f"\n❌ Error resetting webhook: {str(e)}")
         sys.exit(1)

@@ -126,7 +126,7 @@ def main():
         print(f"  - Last error message: {webhook_info.get('last_error_message', 'None')}")
         
         # Expected webhook URL
-        expected_url = "https://api-booking-room.tkilocal.biz.id/webhook/telegram"
+        expected_url = "https://api-booking-room.tkilocal.biz.id/api/v1/webhook/telegram"
         
         print(f"\n📋 Expected Webhook URL:")
         print(f"  - URL: {expected_url}")
@@ -136,7 +136,7 @@ def main():
         if not current_webhook:
             print("  ❌ CRITICAL: No webhook is set!")
             print("  💡 The bot will NOT receive any messages until webhook is set.")
-            print("  💡 You need to set the webhook to: {expected_url}")
+            print(f"  💡 You need to set the webhook to: {expected_url}")
         elif current_webhook != expected_url:
             print("  ❌ CRITICAL: Webhook is pointing to WRONG URL!")
             print(f"  💡 Current:  {current_webhook}")
@@ -144,6 +144,14 @@ def main():
             print("  💡 Telegram is sending messages to the wrong endpoint.")
         else:
             print("  ✅ Webhook URL is correctly configured!")
+            allowed_updates = webhook_info.get("allowed_updates") or []
+            expected_updates = ["message", "callback_query", "chat_member", "my_chat_member"]
+            if set(allowed_updates) == set(expected_updates):
+                print("  ✅ allowed_updates includes my_chat_member!")
+            else:
+                print("  ❌ allowed_updates is incomplete!")
+                print(f"  💡 Current:  {allowed_updates}")
+                print(f"  💡 Expected: {expected_updates}")
             
             # Test if the endpoint is accessible
             health_url = "https://api-booking-room.tkilocal.biz.id/health"
@@ -157,11 +165,11 @@ def main():
         if not current_webhook:
             print("❌ PROBLEM: Bot has NO webhook configured.")
             print("🔧 SOLUTION: Set webhook using:")
-            print(f"   curl -F 'url={expected_url}' https://api.telegram.org/bot{token}/setWebhook")
+            print(f"   curl -F 'url={expected_url}' https://api.telegram.org/bot<BOT_TOKEN>/setWebhook")
         elif current_webhook != expected_url:
             print("❌ PROBLEM: Webhook is pointing to wrong URL.")
             print("🔧 SOLUTION: Reset webhook using:")
-            print(f"   curl -F 'url={expected_url}' https://api.telegram.org/bot{token}/setWebhook")
+            print(f"   curl -F 'url={expected_url}' https://api.telegram.org/bot<BOT_TOKEN>/setWebhook")
         else:
             print("✅ Webhook configuration looks correct!")
             print("💡 If bot still doesn't respond, check:")

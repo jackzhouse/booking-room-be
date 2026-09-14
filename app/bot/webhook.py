@@ -11,6 +11,7 @@ from app.bot.handlers.schedule import schedule
 from app.bot.handlers.cancel import cancel
 from app.bot.handlers.authorize import authorize_command
 from app.bot.handlers.chat_member import get_chat_member_handler
+from app.bot.constants import TELEGRAM_ALLOWED_UPDATES
 
 # Configure logging
 logging.basicConfig(
@@ -18,7 +19,6 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
-
 
 # Initialize bot application
 application = Application.builder().token(settings.BOT_TOKEN).build()
@@ -156,12 +156,12 @@ async def set_webhook():
         webhook_kwargs = {
             "url": webhook_url,
             "drop_pending_updates": True,
-            "allowed_updates": ["message", "callback_query", "chat_member", "my_chat_member"],
+            "allowed_updates": TELEGRAM_ALLOWED_UPDATES,
         }
         if settings.WEBHOOK_SECRET_TOKEN:
             webhook_kwargs["secret_token"] = settings.WEBHOOK_SECRET_TOKEN
         await temp_app.bot.set_webhook(**webhook_kwargs)
-        logger.info("✅ Telegram webhook set successfully with allowed_updates: message, callback_query, chat_member, my_chat_member")
+        logger.info("✅ Telegram webhook set successfully with allowed_updates: %s", ", ".join(TELEGRAM_ALLOWED_UPDATES))
         await temp_app.shutdown()
     except Exception as e:
         logger.error(f"❌ Error setting webhook: {str(e)}")

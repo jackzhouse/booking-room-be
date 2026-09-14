@@ -6,7 +6,8 @@ Use this to verify or manually configure the webhook.
 import requests
 import sys
 import os
-from urllib.parse import urljoin
+
+from app.bot.constants import TELEGRAM_ALLOWED_UPDATES
 
 # Your bot token
 BOT_TOKEN = os.environ.get("BOT_TOKEN", "REPLACE_WITH_BOT_TOKEN")
@@ -18,7 +19,13 @@ WEBHOOK_SECRET_TOKEN = os.environ.get("WEBHOOK_SECRET_TOKEN")
 WEBHOOK_BASE_URL = os.environ.get("WEBHOOK_BASE_URL", "https://api-booking-room.tkilocal.biz.id")
 
 # Full webhook URL
-WEBHOOK_URL = urljoin(WEBHOOK_BASE_URL, "/webhook/telegram")
+WEBHOOK_URL = f"{WEBHOOK_BASE_URL.rstrip('/')}/api/v1/webhook/telegram"
+
+
+def mask_token(token: str) -> str:
+    if not token or token == "REPLACE_WITH_BOT_TOKEN":
+        return "not set"
+    return f"{token[:8]}...{token[-4:]}"
 
 def get_webhook_info():
     """Get current webhook info from Telegram"""
@@ -33,13 +40,14 @@ def set_webhook():
     payload = {
         "url": WEBHOOK_URL,
         "drop_pending_updates": True,
-        "allowed_updates": ["message", "callback_query", "chat_member", "my_chat_member"]
+        "allowed_updates": TELEGRAM_ALLOWED_UPDATES
     }
     if WEBHOOK_SECRET_TOKEN:
         payload["secret_token"] = WEBHOOK_SECRET_TOKEN
     
     print(f"🔗 Setting webhook to: {WEBHOOK_URL}")
-    print(f"📦 Payload: {payload}")
+    print(f"📦 Allowed updates: {', '.join(TELEGRAM_ALLOWED_UPDATES)}")
+    print(f"🔐 Webhook secret: {'set' if WEBHOOK_SECRET_TOKEN else 'not set'}")
     
     response = requests.post(url, json=payload)
     result = response.json()
@@ -56,7 +64,7 @@ if __name__ == "__main__":
     print("=" * 60)
     print("TELEGRAM WEBHOOK MANAGER")
     print("=" * 60)
-    print(f"Bot Token: {BOT_TOKEN}")
+    print(f"Bot Token: {mask_token(BOT_TOKEN)}")
     print(f"Webhook Base URL: {WEBHOOK_BASE_URL}")
     print(f"Full Webhook URL: {WEBHOOK_URL}")
     print(f"Webhook Secret: {'set' if WEBHOOK_SECRET_TOKEN else 'not set'}")
@@ -67,6 +75,7 @@ if __name__ == "__main__":
     print("-" * 60)
     info = get_webhook_info()
     print(f"URL: {info['result']['url']}")
+    print(f"Allowed Updates: {info['result'].get('allowed_updates', [])}")
     print(f"Pending Updates: {info['result']['pending_update_count']}")
     print(f"Last Error Date: {info['result'].get('last_error_date', 'None')}")
     print(f"Last Error Message: {info['result'].get('last_error_message', 'None')}")

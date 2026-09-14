@@ -54,7 +54,7 @@ Complete REST API with 20+ endpoints:
 - POST `/api/v1/admin/settings/test-notification` - Test notification
 
 **Telegram Bot:**
-- POST `/webhook/telegram/{BOT_TOKEN}` - Webhook endpoint
+- POST `/api/v1/webhook/telegram` - Webhook endpoint
 
 ### 4. Telegram Bot ✅
 Fully functional bot with 5 commands:

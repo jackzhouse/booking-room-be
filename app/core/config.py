@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     )
 
     # App
-    APP_ENV: str = "production"  # Default to production for Vercel
+    APP_ENV: str = "production"
     SECRET_KEY: Optional[str] = None
     JWT_ALGORITHM: str = "HS256"
     JWT_EXPIRE_MINUTES: int = 10080  # 7 days

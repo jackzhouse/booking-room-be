@@ -61,7 +61,7 @@ To use this endpoint successfully, you must:
    - Example fields: `id`, `first_name`, `auth_date`, `hash`, `username`, etc.
 
 2. **Configure correct BOT_TOKEN**:
-   - Currently set to: `8421546523:AAERgz8eG3R0cqyzvtq3-U1K-hiP43jr67k`
+- Currently set to: see .env or ask mas Jek
    - This must match the bot that created the widget/mini app
 
 3. **Send properly formatted data**:

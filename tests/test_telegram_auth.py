@@ -7,8 +7,8 @@ from urllib.parse import urlencode, parse_qs
 from hashlib import sha256
 import hmac
 
-# Load bot token from .env
-BOT_TOKEN = "8421546523:AAERgz8eG3R0cqyzvtq3-U1K-hiP43jr67k"
+# Sample token for local hash debugging only. Real token lives in environment or Consul.
+BOT_TOKEN = "123456789:TEST_TOKEN"
 
 def verify_telegram_hash_debug(query_string: str) -> tuple[bool, str]:
     """

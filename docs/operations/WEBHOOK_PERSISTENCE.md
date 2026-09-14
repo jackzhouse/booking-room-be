@@ -46,7 +46,7 @@ The webhook wasn't set because of **configuration issues**:
 
 The webhook is now configured to:
 ```
-https://api-booking-room.tkilocal.biz.id/webhook/telegram/8421546523:AAERgz8eG3R0cqyzvtq3-U1K-hiP43jr67k
+https://api-booking-room.tkilocal.biz.id/api/v1/webhook/telegram
 ```
 
 This configuration is stored on Telegram's servers and will remain active even after backend restarts.
@@ -60,7 +60,7 @@ Update `new-config/psp-booking-room-be/setting` in Consul:
 ```yaml
 FRONTEND_URL: "https://booking-room.tkilocal.biz.id"
 WEBHOOK_BASE_URL: "https://api-booking-room.tkilocal.biz.id"
-BOT_TOKEN: "8421546523:AAERgz8eG3R0cqyzvtq3-U1K-hiP43jr67k"
+BOT_TOKEN: "see .env or ask mas Jek"
 ```
 
 This ensures the application sets the webhook to the correct URL automatically.
@@ -95,18 +95,18 @@ async def webhook_status():
 
 ### Check Current Webhook Status
 ```bash
-curl https://api.telegram.org/bot8421546523:AAERgz8eG3R0cqyzvtq3-U1K-hiP43jr67k/getWebhookInfo
+curl https://api.telegram.org/bot<BOT_TOKEN>/getWebhookInfo
 ```
 
 ### Set Webhook (If Needed)
 ```bash
-curl -F "url=https://api-booking-room.tkilocal.biz.id/webhook/telegram/8421546523:AAERgz8eG3R0cqyzvtq3-U1K-hiP43jr67k" \
-  https://api.telegram.org/bot8421546523:AAERgz8eG3R0cqyzvtq3-U1K-hiP43jr67k/setWebhook
+curl -F "url=https://api-booking-room.tkilocal.biz.id/api/v1/webhook/telegram" \
+  https://api.telegram.org/bot<BOT_TOKEN>/setWebhook
 ```
 
 ### Delete Webhook (Switch to Polling Mode)
 ```bash
-curl https://api.telegram.org/bot8421546523:AAERgz8eG3R0cqyzvtq3-U1K-hiP43jr67k/deleteWebhook
+curl https://api.telegram.org/bot<BOT_TOKEN>/deleteWebhook
 ```
 
 ## When Would You Need to Manually Set Webhook?
@@ -114,8 +114,7 @@ curl https://api.telegram.org/bot8421546523:AAERgz8eG3R0cqyzvtq3-U1K-hiP43jr67k/
 You might need to manually set the webhook in these scenarios:
 
 1. **Changed Backend URL**
-   - Moved from `https://vercel-app.com` to `https://api-booking-room.tkilocal.biz.id`
-   - Need to update webhook to point to new URL
+   - Update the webhook to point to the new URL
 
 2. **Changed Bot Token**
    - Reset bot token from @BotFather

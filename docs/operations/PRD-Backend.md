@@ -293,7 +293,7 @@ Jika `current_user.is_admin == true`, conflict checker dan validasi jam operasio
 
 Bot berjalan mode webhook, terintegrasi langsung dalam FastAPI di endpoint:
 ```
-POST /webhook/telegram/{SECRET_BOT_TOKEN}
+POST /api/v1/webhook/telegram
 ```
 
 ### 7.2 Commands

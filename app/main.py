@@ -74,7 +74,7 @@ async def lifespan(app: FastAPI):
     scheduler.start()
     print("✅ Scheduler started: Will check for ended bookings every 5 minutes")
     
-    # Set Telegram webhook (for Vercel deployment)
+    # Set Telegram webhook
     try:
         await set_webhook()
         print("✅ Telegram webhook configured successfully")

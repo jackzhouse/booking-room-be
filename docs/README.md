@@ -1,7 +1,7 @@
 # Backend Documentation
 
 - `api/` — endpoint and feature contracts
-- `deployment/` — Docker, Vercel, and Render deployment guides
+- `deployment/` — Docker deployment guide
 - `integrations/` — external app and frontend integration guides
 - `operations/` — production operations and backend requirements
 - `history/` — implementation summaries, fixes, and diagnoses
