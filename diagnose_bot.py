@@ -125,8 +125,10 @@ def main():
     # Check expected values
     print("\n📋 Expected Configuration:")
     print("-" * 80)
-    print(f"FRONTEND_URL should be: https://booking-room.tkilocal.biz.id")
-    print(f"WEBHOOK_BASE_URL should be: https://api-booking-room.tkilocal.biz.id")
+    expected_frontend_url = "https://booking-room.teknologikartu.com"
+    expected_webhook_base_url = "https://api.prd.teknologikartu.com/booking"
+    print(f"FRONTEND_URL should be: {expected_frontend_url}")
+    print(f"WEBHOOK_BASE_URL should be: {expected_webhook_base_url}")
     
     # Validate configuration
     print("\n✅ Configuration Validation:")
@@ -134,11 +136,11 @@ def main():
     
     issues = []
     
-    if frontend_url != "https://booking-room.tkilocal.biz.id":
-        issues.append(f"FRONTEND_URL mismatch: current={frontend_url}, expected=https://booking-room.tkilocal.biz.id")
+    if frontend_url != expected_frontend_url:
+        issues.append(f"FRONTEND_URL mismatch: current={frontend_url}, expected={expected_frontend_url}")
     
-    if webhook_base_url != "https://api-booking-room.tkilocal.biz.id":
-        issues.append(f"WEBHOOK_BASE_URL mismatch: current={webhook_base_url}, expected=https://api-booking-room.tkilocal.biz.id")
+    if webhook_base_url != expected_webhook_base_url:
+        issues.append(f"WEBHOOK_BASE_URL mismatch: current={webhook_base_url}, expected={expected_webhook_base_url}")
     
     if not bot_token:
         issues.append("BOT_TOKEN is not set")
@@ -168,7 +170,7 @@ def main():
                 print(f"  - Has custom certificate: {webhook_info.get('has_custom_certificate', False)}")
                 print(f"  - Pending updates: {webhook_info.get('pending_update_count', 0)}")
                 
-                expected_webhook = f"{webhook_base_url}/webhook/telegram" if webhook_base_url else "NOT SET"
+                expected_webhook = f"{webhook_base_url.rstrip('/')}/api/v1/webhook/telegram" if webhook_base_url else "NOT SET"
                 print(f"\n  Expected webhook URL: {expected_webhook}")
                 
                 if current_webhook != expected_webhook:
@@ -180,10 +182,6 @@ def main():
                 else:
                     print(f"  ✅ Webhook is correctly configured!")
                 
-                # Test webhook endpoint
-                if webhook_base_url:
-                    test_url = f"{webhook_base_url}/health"
-                    check_webhook_endpoint(test_url)
         
         # Final summary
         print("\n" + "=" * 80)
@@ -192,9 +190,9 @@ def main():
         
         if not bot_token:
             print("❌ CRITICAL: BOT_TOKEN is missing. Bot will not receive any messages.")
-        elif webhook_base_url != "https://api-booking-room.tkilocal.biz.id":
+        elif webhook_base_url != expected_webhook_base_url:
             print("❌ CRITICAL: WEBHOOK_BASE_URL is incorrect. Webhook pointing to wrong URL.")
-        elif frontend_url != "https://booking-room.tkilocal.biz.id":
+        elif frontend_url != expected_frontend_url:
             print("⚠️  WARNING: FRONTEND_URL is incorrect. Links in bot messages will be wrong.")
         else:
             print("✅ Configuration looks good. Check webhook status above for details.")

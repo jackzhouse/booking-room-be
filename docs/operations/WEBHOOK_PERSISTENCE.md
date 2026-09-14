@@ -46,7 +46,7 @@ The webhook wasn't set because of **configuration issues**:
 
 The webhook is now configured to:
 ```
-https://api-booking-room.tkilocal.biz.id/api/v1/webhook/telegram
+https://api.prd.teknologikartu.com/booking/api/v1/webhook/telegram
 ```
 
 This configuration is stored on Telegram's servers and will remain active even after backend restarts.
@@ -58,8 +58,8 @@ This configuration is stored on Telegram's servers and will remain active even a
 Update `new-config/psp-booking-room-be/setting` in Consul:
 
 ```yaml
-FRONTEND_URL: "https://booking-room.tkilocal.biz.id"
-WEBHOOK_BASE_URL: "https://api-booking-room.tkilocal.biz.id"
+FRONTEND_URL: "https://booking-room.teknologikartu.com"
+WEBHOOK_BASE_URL: "https://api.prd.teknologikartu.com/booking"
 BOT_TOKEN: "see .env or ask mas Jek"
 ```
 
@@ -100,7 +100,7 @@ curl https://api.telegram.org/bot<BOT_TOKEN>/getWebhookInfo
 
 ### Set Webhook (If Needed)
 ```bash
-curl -F "url=https://api-booking-room.tkilocal.biz.id/api/v1/webhook/telegram" \
+curl -F "url=https://api.prd.teknologikartu.com/booking/api/v1/webhook/telegram" \
   https://api.telegram.org/bot<BOT_TOKEN>/setWebhook
 ```
 

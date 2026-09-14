@@ -133,6 +133,7 @@ app.include_router(telegram_groups.router, prefix="/booking/api/v1", include_in_
 
 
 @app.post("/api/v1/webhook/telegram")
+@app.post("/booking/api/v1/webhook/telegram", include_in_schema=False)
 @app.post("/webhook/telegram", include_in_schema=False)
 async def telegram_webhook(
     request: Request,

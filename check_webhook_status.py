@@ -126,7 +126,7 @@ def main():
         print(f"  - Last error message: {webhook_info.get('last_error_message', 'None')}")
         
         # Expected webhook URL
-        expected_url = "https://api-booking-room.tkilocal.biz.id/api/v1/webhook/telegram"
+        expected_url = "https://api.prd.teknologikartu.com/booking/api/v1/webhook/telegram"
         
         print(f"\n📋 Expected Webhook URL:")
         print(f"  - URL: {expected_url}")
@@ -153,9 +153,7 @@ def main():
                 print(f"  💡 Current:  {allowed_updates}")
                 print(f"  💡 Expected: {expected_updates}")
             
-            # Test if the endpoint is accessible
-            health_url = "https://api-booking-room.tkilocal.biz.id/health"
-            test_webhook_endpoint(health_url, token)
+            # HTTP reachability is reported by Telegram in getWebhookInfo.
         
         # Summary
         print("\n" + "=" * 80)

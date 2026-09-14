@@ -16,7 +16,7 @@ BOT_TOKEN = os.environ.get("BOT_TOKEN", "REPLACE_WITH_BOT_TOKEN")
 WEBHOOK_SECRET_TOKEN = os.environ.get("WEBHOOK_SECRET_TOKEN")
 
 # Your backend URL (should match WEBHOOK_BASE_URL in Consul)
-WEBHOOK_BASE_URL = os.environ.get("WEBHOOK_BASE_URL", "https://api-booking-room.tkilocal.biz.id")
+WEBHOOK_BASE_URL = os.environ.get("WEBHOOK_BASE_URL", "https://api.prd.teknologikartu.com/booking")
 
 # Full webhook URL
 WEBHOOK_URL = f"{WEBHOOK_BASE_URL.rstrip('/')}/api/v1/webhook/telegram"

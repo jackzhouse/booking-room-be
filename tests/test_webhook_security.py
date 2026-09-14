@@ -18,10 +18,11 @@ def test_webhook_url_no_longer_embeds_bot_token(monkeypatch):
     assert "bot-token-value" not in settings.webhook_url
 
 
-def test_new_and_legacy_telegram_webhook_routes_are_registered():
+def test_telegram_webhook_routes_are_registered():
     routes = {(route.path, method) for route in app.routes for method in route.methods or set()}
 
     assert ("/api/v1/webhook/telegram", "POST") in routes
+    assert ("/booking/api/v1/webhook/telegram", "POST") in routes
     assert ("/webhook/telegram", "POST") in routes
 
 

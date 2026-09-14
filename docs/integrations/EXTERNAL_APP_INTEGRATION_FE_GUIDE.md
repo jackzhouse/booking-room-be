@@ -35,7 +35,7 @@ Redirect to dashboard
 
 User from external app clicks a link like:
 ```
-https://booking-room.tkilocal.biz.id/auth/token/{jwt_token}
+https://booking-room.teknologikartu.com/auth/token/{jwt_token}
 ```
 
 The JWT token contains:
@@ -66,7 +66,7 @@ const jwtToken = pathParts[pathParts.length - 1];
 Call app SSO endpoint. Backend validates token, resolves credential-check token if needed, then reads the authoritative employee profile from `account/detail` before login or auto-register.
 
 ```typescript
-const ssoResponse = await fetch('https://booking-room.tkilocal.biz.id/api/v1/auth/sso', {
+const ssoResponse = await fetch('https://booking-room.teknologikartu.com/api/v1/auth/sso', {
   method: 'POST',
   headers: {
     'Content-Type': 'application/json',
@@ -143,7 +143,7 @@ Legacy note:
 For all subsequent requests, include the external token in Authorization header:
 
 ```typescript
-const response = await fetch('https://booking-room.tkilocal.biz.id/api/v1/bookings', {
+const response = await fetch('https://booking-room.teknologikartu.com/api/v1/bookings', {
   method: 'GET',
   headers: {
     'Authorization': `Bearer ${jwtToken}`
@@ -152,7 +152,7 @@ const response = await fetch('https://booking-room.tkilocal.biz.id/api/v1/bookin
 
 // Or using stored token
 const storedToken = localStorage.getItem('external_token');
-const response = await fetch('https://booking-room.tkilocal.biz.id/api/v1/bookings', {
+const response = await fetch('https://booking-room.teknologikartu.com/api/v1/bookings', {
   method: 'GET',
   headers: {
     'Authorization': `Bearer ${storedToken}`
@@ -565,7 +565,7 @@ Both can access the same booking endpoints, but:
 ### Test Flow
 
 1. Obtain a valid JWT token from the external app
-2. Navigate to: `https://booking-room.tkilocal.biz.id/auth/token/{jwt_token}`
+2. Navigate to: `https://booking-room.teknologikartu.com/auth/token/{jwt_token}`
 3. Verify the token is processed correctly
 4. Complete registration if needed
 5. Access booking endpoints

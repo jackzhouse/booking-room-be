@@ -14,7 +14,7 @@ def check_webhook_status():
     print("\nTesting webhook endpoint accessibility...")
     
     # Test if the webhook endpoint pattern is accessible
-    webhook_base = "https://api-booking-room.tkilocal.biz.id"
+    webhook_base = "https://api.prd.teknologikartu.com/booking"
     
     # Test health endpoint
     try:

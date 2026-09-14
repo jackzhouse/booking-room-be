@@ -9,7 +9,7 @@ The Telegram bot is not responding to ANY commands (`/start`, `/help`, `/authori
 - **FRONTEND_URL**: Must match the active frontend domain in deployment configuration.
   
 - **WEBHOOK_BASE_URL**: Unknown (loaded from Consul)
-  - ✅ Should be: `https://api-booking-room.tkilocal.biz.id`
+  - ✅ Should be: `https://api.prd.teknologikartu.com/booking`
 
 - **BOT_TOKEN**: Unknown (loaded from Consul)
   - ❓ Must be valid for bot to work
@@ -68,7 +68,7 @@ If the response shows `url: ""`, then:
 - **Solution**: Set the webhook
 
 #### Scenario 2: Wrong Webhook URL
-If the response shows a URL different from `https://api-booking-room.tkilocal.biz.id/api/v1/webhook/telegram`:
+If the response shows a URL different from `https://api.prd.teknologikartu.com/booking/api/v1/webhook/telegram`:
 - **Problem**: Webhook is pointing to wrong endpoint
 - **Solution**: Reset the webhook
 
@@ -87,7 +87,7 @@ python set_webhook_manual.py
 **Option B: Using curl directly**
 ```bash
 # Replace <YOUR_BOT_TOKEN> with your actual bot token
-curl -F "url=https://api-booking-room.tkilocal.biz.id/api/v1/webhook/telegram" \
+curl -F "url=https://api.prd.teknologikartu.com/booking/api/v1/webhook/telegram" \
   https://api.telegram.org/bot<YOUR_BOT_TOKEN>/setWebhook
 ```
 
@@ -96,8 +96,8 @@ curl -F "url=https://api-booking-room.tkilocal.biz.id/api/v1/webhook/telegram" \
 The following values should be set in Consul at `new-config/psp-booking-room-be/setting`:
 
 ```yaml
-FRONTEND_URL: "https://booking-room.tkilocal.biz.id"
-WEBHOOK_BASE_URL: "https://api-booking-room.tkilocal.biz.id"
+FRONTEND_URL: "https://booking-room.teknologikartu.com"
+WEBHOOK_BASE_URL: "https://api.prd.teknologikartu.com/booking"
 BOT_TOKEN: "<your-bot-token>"
 ```
 
@@ -116,7 +116,7 @@ After setting the webhook:
    curl https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getWebhookInfo
    ```
 
-2. The `url` should now be: `https://api-booking-room.tkilocal.biz.id/api/v1/webhook/telegram`
+2. The `url` should now be: `https://api.prd.teknologikartu.com/booking/api/v1/webhook/telegram`
 
 3. Test the bot in Telegram:
    - Send `/start`
@@ -127,16 +127,16 @@ After setting the webhook:
 
 The webhook should be set to:
 ```
-https://api-booking-room.tkilocal.biz.id/api/v1/webhook/telegram
+https://api.prd.teknologikartu.com/booking/api/v1/webhook/telegram
 ```
 
 ## Common Issues & Solutions
 
 ### Issue: "Webhook endpoint is not accessible"
-**Cause**: The server at `api-booking-room.tkilocal.biz.id` is not reachable from Telegram's servers.
+**Cause**: The configured webhook target is not reachable from Telegram's servers.
 
 **Solutions**:
-1. Verify the server is running: `curl https://api-booking-room.tkilocal.biz.id/health`
+1. Verify the server is running: `curl https://api.prd.teknologikartu.com/booking/health`
 2. Check firewall rules allow incoming HTTPS traffic
 3. Verify DNS resolution works
 4. Check if SSL certificate is valid
