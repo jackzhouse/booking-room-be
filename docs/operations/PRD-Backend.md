@@ -313,41 +313,64 @@ Jika user belum terdaftar (telegram_id tidak ditemukan di collection users), bot
 
 **Booking Baru:**
 ```
-📅 *Booking Baru*
+Informasi Penggunaan Ruang Meeting
 
-👤 Nama      : Budi Santoso
-🏢 Divisi    : Engineering
-🚪 Ruangan   : Ruang Meeting 1
-📌 Keperluan : Sprint Planning Q1
-📝 Deskripsi : Kick off sprint dengan seluruh tim dev
-🕐 Waktu     : Senin, 24 Feb 2025 | 09:00 – 11:00 WIB
+Budi Santoso dari Divisi Engineering telah menjadwalkan penggunaan ruangan:
 
-🆔 #BK-00123
+Ruang: Ruang Meeting 1
+Tanggal: Senin, 24 Februari 2025
+Waktu: 09.00 sampai 11.00 WIB
+Keperluan: Sprint Planning Q1
+Deskripsi: Kick off sprint dengan seluruh tim dev.
+
+PIC: Budi Santoso (@budisantoso)
+Booking: #BK-00123
+
+Mohon koordinasi dengan PIC bila diperlukan.
+
+Pesan otomatis dari Bot Booking Room.
 ```
 
 **Booking Diubah:**
 ```
-✏️ *Booking Diubah*
+Perubahan Penggunaan Ruang Meeting
 
-👤 Oleh : Budi Santoso
-🆔 #BK-00123
+Budi Santoso dari Divisi Engineering telah memperbarui jadwal penggunaan ruangan:
 
 Perubahan:
-🚪 Ruangan : Ruang Meeting 1 → Ruang Meeting 2
-🕐 Waktu   : 09:00–11:00 → 13:00–15:00 WIB
+• Ruangan
+• Tanggal/jam
+
+Ruang: Ruang Meeting 2
+Tanggal: Senin, 24 Februari 2025
+Waktu: 13.00 sampai 15.00 WIB
+Keperluan: Sprint Planning Q1
+
+PIC: Budi Santoso (@budisantoso)
+Booking: #BK-00123
+
+Mohon gunakan jadwal terbaru ini sebagai acuan.
+
+Pesan otomatis dari Bot Booking Room.
 ```
 
 **Booking Dibatalkan:**
 ```
-❌ *Booking Dibatalkan*
+Pembatalan Penggunaan Ruang Meeting
 
-👤 Dibatalkan oleh : Budi Santoso
-🆔 #BK-00123
+Budi Santoso dari Divisi Engineering telah membatalkan penggunaan ruangan berikut:
 
-Detail yang dibatalkan:
-🚪 Ruang Meeting 1
-📌 Sprint Planning Q1
-🕐 Senin, 24 Feb 2025 | 09:00 – 11:00 WIB
+Ruang: Ruang Meeting 1
+Tanggal: Senin, 24 Februari 2025
+Waktu: 09.00 sampai 11.00 WIB
+Keperluan: Sprint Planning Q1
+
+PIC: Budi Santoso (@budisantoso)
+Booking: #BK-00123
+
+Ruangan tersedia kembali pada jadwal tersebut.
+
+Pesan otomatis dari Bot Booking Room.
 ```
 
 ---

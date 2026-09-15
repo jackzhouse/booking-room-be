@@ -320,10 +320,10 @@ def test_consumption_notification_includes_selected_facilities(monkeypatch):
 
     asyncio.run(telegram_service.notify_consumption_group(booking))
 
-    assert "<b>Permintaan Konsumsi</b>" in sent_messages[0]
-    assert "<b>Deskripsi</b>\nKoordinasi target\nmingguan" in sent_messages[0]
-    assert "<b>Fasilitas</b>\n• AC\n• Proyektor" in sent_messages[0]
-    assert "<b>Konsumsi</b>\n• 15 nasi box\n• 15 air mineral" in sent_messages[0]
+    assert "<b>Permintaan Konsumsi Ruang Meeting</b>" in sent_messages[0]
+    assert "<b>Deskripsi:</b>\nKoordinasi target\nmingguan" in sent_messages[0]
+    assert "<b>Fasilitas:</b>\n• AC\n• Proyektor" in sent_messages[0]
+    assert "<b>Konsumsi:</b>\n• 15 nasi box\n• 15 air mineral" in sent_messages[0]
 
 
 def test_consumption_update_notification_uses_change_title_and_same_group(monkeypatch):
@@ -340,10 +340,10 @@ def test_consumption_update_notification_uses_change_title_and_same_group(monkey
 
     chat_id, message = sent_messages[0]
     assert chat_id == booking.consumption_group_id
-    assert "<b>Perubahan Konsumsi</b>" in message
-    assert "<b>Deskripsi</b>\nTests" in message
-    assert "<b>Fasilitas</b>\n• AC\n• Proyektor" in message
-    assert "<b>Konsumsi</b>\n• test" in message
+    assert "<b>Perubahan Permintaan Konsumsi</b>" in message
+    assert "<b>Deskripsi:</b>\nTests" in message
+    assert "<b>Fasilitas:</b>\n• AC\n• Proyektor" in message
+    assert "<b>Konsumsi:</b>\n• test" in message
 
 
 def test_consumption_note_normalizes_existing_bullets_and_blank_lines():
@@ -363,13 +363,13 @@ def test_notification_template_escapes_dynamic_values():
     message = telegram_service._render_booking_notification(
         "Booking <Baru>",
         booking,
-        "Koordinasi",
+        "PIC <sebelum> lanjut.",
         "Hubungi PIC <sebelum> lanjut.",
     )
 
     assert "<b>Booking &lt;Baru&gt;</b>" in message
-    assert "<code>#BK-&lt;00061&gt;</code>" in message
-    assert "<b>Ruang &lt;Utama&gt; &amp; A</b>" in message
+    assert "<b>Ruang:</b> Ruang &lt;Utama&gt; &amp; A" in message
+    assert "<b>Booking:</b> #BK-&lt;00061&gt;" in message
     assert "Rapat &lt;internal&gt; &amp; final" in message
     assert "Bahas A &lt; B &amp; C" in message
     assert "Hubungi PIC &lt;sebelum&gt; lanjut." in message
@@ -392,19 +392,18 @@ def test_new_booking_notification_uses_approved_layout_for_main_and_verification
     asyncio.run(send_notifications())
 
     expected = (
-        "<b>Booking Ruang Baru</b>\n"
-        "<code>#BK-00061</code>\n\n"
-        "<b>Kantin</b>\n"
-        "📅 Rabu, 8 Jul 2026\n"
-        "🕚 14.00 – 14.19 WIB\n\n"
-        "<b>PIC:</b> SYIFA MAULIDA\n"
-        "<b>Divisi:</b> IT\n\n"
-        "<b>Keperluan</b>\n"
-        "Test Joko\n\n"
-        "<b>Deskripsi</b>\n"
+        "<b>Informasi Penggunaan Ruang Meeting</b>\n\n"
+        "SYIFA MAULIDA dari Divisi IT telah menjadwalkan penggunaan ruangan:\n\n"
+        "<b>Ruang:</b> Kantin\n"
+        "<b>Tanggal:</b> Rabu, 8 Juli 2026\n"
+        "<b>Waktu:</b> 14.00 sampai 14.19 WIB\n"
+        "<b>Keperluan:</b> Test Joko\n\n"
+        "<b>Deskripsi:</b>\n"
         "Tests\n\n"
-        "<blockquote><b>Koordinasi</b>\n"
-        "Hubungi PIC terkait penggunaan ruang.</blockquote>"
+        "<b>PIC:</b> SYIFA MAULIDA\n"
+        "<b>Booking:</b> #BK-00061\n\n"
+        "Mohon koordinasi dengan PIC bila diperlukan.\n\n"
+        "Pesan otomatis dari Bot Booking Room."
     )
 
     assert sent_messages == [
@@ -443,57 +442,57 @@ def test_all_notification_types_use_html_template(monkeypatch):
     asyncio.run(send_all())
 
     expected_titles = [
-        "Booking Ruang Baru",
-        "Booking Ruang Diubah",
-        "Tujuan Notifikasi Diubah",
-        "Booking Ruang Dibatalkan",
-        "Test Notifikasi",
-        "Permintaan Konsumsi",
-        "Perubahan Konsumsi",
-        "Konsumsi Dibatalkan",
-        "Booking Ruang Baru",
-        "Booking Ruang Dibatalkan",
-        "Meeting Selesai",
-    ]
-    expected_callouts = [
-        "Koordinasi",
-        "Perhatian",
-        "Perhatian",
-        "Status",
-        "Status",
-        "Koordinasi",
-        "Koordinasi",
-        "Status",
-        "Koordinasi",
-        "Status",
-        "Tindakan",
+        "Informasi Penggunaan Ruang Meeting",
+        "Perubahan Penggunaan Ruang Meeting",
+        "Perubahan Tujuan Notifikasi",
+        "Pembatalan Penggunaan Ruang Meeting",
+        "Test Notifikasi Bot Booking Room",
+        "Permintaan Konsumsi Ruang Meeting",
+        "Perubahan Permintaan Konsumsi",
+        "Pembatalan Permintaan Konsumsi",
+        "Informasi Penggunaan Ruang Meeting",
+        "Pembatalan Penggunaan Ruang Meeting",
+        "Penggunaan Ruang Meeting Selesai",
     ]
     assert [parse_mode for _, _, parse_mode in sent_messages] == ["HTML"] * len(expected_titles)
     assert [
         f"<b>{title}</b>" in message
         for title, (_, message, _) in zip(expected_titles, sent_messages)
     ] == [True] * len(expected_titles)
-    assert [
-        f"<blockquote><b>{label}</b>" in message
-        for label, (_, message, _) in zip(expected_callouts, sent_messages)
-    ] == [True] * len(expected_callouts)
+    assert all(
+        telegram_service.BOT_NOTIFICATION_FOOTER in message
+        for _, message, _ in sent_messages
+    )
 
     booking_messages = [
         message for index, (_, message, _) in enumerate(sent_messages) if index != 4
     ]
-    assert all("<code>#BK-00061</code>" in message for message in booking_messages)
-    assert all("📅 Rabu, 8 Jul 2026" in message for message in booking_messages)
+    assert all("<b>Booking:</b> #BK-00061" in message for message in booking_messages)
     assert all("<b>PIC:</b> SYIFA MAULIDA" in message for message in booking_messages)
-    assert all("<b>Divisi:</b> IT" in message for message in booking_messages)
-    assert "<b>Perubahan</b>\njudul" in sent_messages[1][1]
-    assert "<b>Tujuan Sebelumnya</b>\ngrup utama" in sent_messages[2][1]
-    assert "Ruangan kini tersedia pada jam tersebut." in sent_messages[3][1]
-    assert "<b>Fasilitas</b>\n• AC\n• Proyektor" in sent_messages[5][1]
-    assert "<b>Konsumsi</b>\n• test" in sent_messages[5][1]
-    assert "<b>Fasilitas</b>\n• AC\n• Proyektor" in sent_messages[7][1]
-    assert "Hentikan persiapan konsumsi bila sudah dijadwalkan." in sent_messages[7][1]
-    assert "🕚 14.19 WIB" in sent_messages[10][1]
+    assert "<b>Perubahan:</b>\njudul" in sent_messages[1][1]
+    assert "<b>Tujuan sebelumnya:</b>\ngrup utama" in sent_messages[2][1]
+    assert "Ruangan tersedia kembali pada jadwal tersebut." in sent_messages[3][1]
+    assert "<b>Fasilitas:</b>\n• AC\n• Proyektor" in sent_messages[5][1]
+    assert "<b>Konsumsi:</b>\n• test" in sent_messages[5][1]
+    assert "<b>Fasilitas:</b>" not in sent_messages[7][1]
+    assert "Mohon hentikan persiapan konsumsi untuk booking ini." in sent_messages[7][1]
+    assert "<b>Waktu:</b> 14.19 WIB" in sent_messages[10][1]
     assert "Rapikan dan bersihkan ruangan setelah penggunaan." in sent_messages[10][1]
+
+
+def test_notification_template_omits_empty_optional_booking_fields():
+    booking = FakeBooking(published=True)
+    booking.description = ""
+    booking.division = None
+    booking.user_snapshot.division = None
+    booking.user_snapshot.telegram_username = None
+
+    message = telegram_service._render_new_booking_notification(booking)
+
+    assert "dari Divisi" not in message
+    assert "<b>Deskripsi:</b>" not in message
+    assert "(@" not in message
+    assert "<b>PIC:</b> SYIFA MAULIDA" in message
 
 
 def test_create_booking_rejects_past_start_time(monkeypatch):

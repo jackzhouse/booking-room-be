@@ -32,45 +32,70 @@ Admin dapat mengatur:
 
 ## 📱 Format Pesan Telegram
 
-### 1. Grup Konsumsi (Simpel)
+### 1. Grup Konsumsi
 ```
-🍽️ Permintaan Konsumsi Meeting
+Permintaan Konsumsi Ruang Meeting
 
-📍 Ruang: Ruang Meeting 1
-📅 Waktu: Senin, 24 Feb 2026 | 09:00 – 11:00 WIB
-👤 PIC: Budi Santoso — (Engineering)
+Budi Santoso dari Divisi Engineering telah mengajukan kebutuhan konsumsi untuk penggunaan ruangan:
 
-📝 Detail Konsumsi:
-Mohon disediakan:
-- 20 pcs snack box
-- 20 botol air mineral
+Ruang: Ruang Meeting 1
+Tanggal: Senin, 24 Februari 2026
+Waktu: 09.00 sampai 11.00 WIB
+Keperluan: Sprint Planning Q1
 
-Mohon bantu menyiapkan konsumsi sesuai permintaan. Terima kasih.
+Fasilitas:
+• AC
+• Proyektor
+
+Konsumsi:
+• 20 snack box
+• 20 air mineral
+
+PIC: Budi Santoso (@budisantoso)
+Booking: #BK-00123
+
+Mohon siapkan konsumsi sesuai permintaan.
+
+Pesan otomatis dari Bot Booking Room.
 ```
 
-### 2. Grup Terpilih / Verifikasi (Format Lengkap)
+### 2. Grup Terpilih / Verifikasi
 ```
-📍  Informasi Booking Ruangan, Ruang Meeting 1
+Informasi Penggunaan Ruang Meeting
 
-📅 Senin, 24 Feb 2026 | 09:00 – 11:00 WIB
+Budi Santoso dari Divisi Engineering telah menjadwalkan penggunaan ruangan:
 
-📋 Detail Booking:
-• Keperluan: Sprint Planning Q1
-• Deskripsi: Kick off sprint dengan seluruh tim dev engineering
-• PIC: Budi Santoso — (Engineering) — @budisantoso
+Ruang: Ruang Meeting 1
+Tanggal: Senin, 24 Februari 2026
+Waktu: 09.00 sampai 11.00 WIB
+Keperluan: Sprint Planning Q1
+Deskripsi: Kick off sprint dengan seluruh tim dev engineering.
 
-Rekan-rekan yang membutuhkan ruangan pada jam tersebut diharapkan dapat berkoordinasi langsung dengan @budisantoso. Terima kasih.
+PIC: Budi Santoso (@budisantoso)
+Booking: #BK-00123
+
+Mohon koordinasi dengan PIC bila diperlukan.
+
+Pesan otomatis dari Bot Booking Room.
 ```
 
 ### 3. Grup Verifikasi (Perapian)
 ```
-✅ Meeting Selesai
+Penggunaan Ruang Meeting Selesai
 
-📍 Ruang: Ruang Meeting 1
-📅 Meeting Berakhir: Senin, 24 Feb 2026 | 11:00 WIB
-👤 PIC: Budi Santoso — (Engineering)
+Budi Santoso dari Divisi Engineering telah selesai menggunakan ruangan:
 
-Mohon bantu dilakukan perapian/kebersihan ruangan setelah penggunaan. Terima kasih.
+Ruang: Ruang Meeting 1
+Tanggal: Senin, 24 Februari 2026
+Waktu: 11.00 WIB
+Keperluan: Sprint Planning Q1
+
+PIC: Budi Santoso (@budisantoso)
+Booking: #BK-00123
+
+Mohon rapikan dan bersihkan ruangan setelah penggunaan.
+
+Pesan otomatis dari Bot Booking Room.
 ```
 
 ---

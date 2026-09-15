@@ -12,6 +12,7 @@ from app.models.telegram_group import TelegramGroup
 
 logger = logging.getLogger(__name__)
 bot = Bot(token=settings.BOT_TOKEN)
+BOT_NOTIFICATION_FOOTER = "Pesan otomatis dari Bot Booking Room."
 
 
 def _display_value(value: object) -> str:
@@ -22,62 +23,121 @@ def _display_value(value: object) -> str:
 
 
 def _format_pic(booking: Booking) -> str:
-    full_name = booking.user_snapshot.full_name or "-"
+    full_name = booking.user_snapshot.full_name or "PIC tidak tersedia"
     username = _get_user_display_name(booking)
     if not username or username == booking.user_snapshot.full_name:
         return full_name
     return f"{full_name} (@{str(username).lstrip('@')})"
 
 
-def _render_blocks(blocks: list[tuple[str, object]]) -> str:
-    return "\n\n".join(
-        f"<b>{_display_value(label)}</b>\n{_display_value(value)}"
-        for label, value in blocks
+def _has_value(value: object) -> bool:
+    return value is not None and str(value).strip() != ""
+
+
+def _render_detail_lines(details: list[tuple[str, object]]) -> str:
+    return "\n".join(
+        f"<b>{_display_value(label)}:</b> {_display_value(value)}"
+        for label, value in details
+        if _has_value(value)
     )
+
+
+def _render_optional_blocks(blocks: list[tuple[str, object]]) -> str:
+    return "\n\n".join(
+        f"<b>{_display_value(label)}:</b>\n{_display_value(value)}"
+        for label, value in blocks
+        if _has_value(value)
+    )
+
+
+def _format_notification_date(dt: datetime) -> str:
+    """Format a full Indonesian date for durable group notifications."""
+    if dt.tzinfo is not None:
+        dt = dt.astimezone(settings.timezone)
+    else:
+        dt = dt.replace(tzinfo=timezone.utc).astimezone(settings.timezone)
+
+    days = ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu", "Minggu"]
+    months = [
+        "Januari", "Februari", "Maret", "April", "Mei", "Juni",
+        "Juli", "Agustus", "September", "Oktober", "November", "Desember",
+    ]
+    return f"{days[dt.weekday()]}, {dt.day} {months[dt.month - 1]} {dt.year}"
+
+
+def _format_notification_time_range(start: datetime, end: datetime) -> str:
+    """Format a group notification time range in Asia/Jakarta."""
+    start_time = _to_notification_timezone(start)
+    end_time = _to_notification_timezone(end)
+    return f"{start_time.strftime('%H.%M')} sampai {end_time.strftime('%H.%M')} WIB"
+
+
+def _to_notification_timezone(dt: datetime) -> datetime:
+    if dt.tzinfo is not None:
+        return dt.astimezone(settings.timezone)
+    return dt.replace(tzinfo=timezone.utc).astimezone(settings.timezone)
+
+
+def _format_booking_intro(booking: Booking, action: str) -> str:
+    division = _get_division_display(booking)
+    if division:
+        return f"{_format_pic(booking)} dari Divisi {division} {action}"
+    return f"{_format_pic(booking)} {action}"
 
 
 def _render_booking_notification(
     title: str,
     booking: Booking,
-    callout_label: str,
-    callout: str,
+    intro: str,
+    instruction: str,
     leading_blocks: Optional[list[tuple[str, object]]] = None,
     trailing_blocks: Optional[list[tuple[str, object]]] = None,
     date_value: Optional[str] = None,
     time_value: Optional[str] = None,
 ) -> str:
-    """Render booking notifications with one compact, HTML-safe hierarchy."""
-    blocks = [
-        *(leading_blocks or []),
-        ("Keperluan", booking.title),
-        ("Deskripsi", booking.description),
-        *(trailing_blocks or []),
-    ]
-    date = date_value or format_date_indonesian(booking.start_time)
-    time_range = time_value or format_time_range(
+    """Render booking notifications as clear, human-readable bot messages."""
+    date = date_value or _format_notification_date(booking.start_time)
+    time_range = time_value or _format_notification_time_range(
         booking.start_time, booking.end_time
-    ).replace(":", ".")
-
-    return (
-        f"<b>{_display_value(title)}</b>\n"
-        f"<code>#{_display_value(booking.booking_number)}</code>\n\n"
-        f"<b>{_display_value(booking.room_snapshot.name)}</b>\n"
-        f"📅 {_display_value(date)}\n"
-        f"🕚 {_display_value(time_range)}\n\n"
-        f"<b>PIC:</b> {_display_value(_format_pic(booking))}\n"
-        f"<b>Divisi:</b> {_display_value(_get_division_display(booking))}\n\n"
-        f"{_render_blocks(blocks)}\n\n"
-        f"<blockquote><b>{_display_value(callout_label)}</b>\n"
-        f"{_display_value(callout)}</blockquote>"
     )
+    sections = [
+        f"<b>{_display_value(title)}</b>",
+        _display_value(intro),
+    ]
+    leading = _render_optional_blocks(leading_blocks or [])
+    if leading:
+        sections.append(leading)
+    sections.append(
+        _render_detail_lines([
+            ("Ruang", booking.room_snapshot.name),
+            ("Tanggal", date),
+            ("Waktu", time_range),
+            ("Keperluan", booking.title),
+        ])
+    )
+    description = _render_optional_blocks([("Deskripsi", booking.description)])
+    if description:
+        sections.append(description)
+    trailing = _render_optional_blocks(trailing_blocks or [])
+    if trailing:
+        sections.append(trailing)
+    sections.extend([
+        _render_detail_lines([
+            ("PIC", _format_pic(booking)),
+            ("Booking", f"#{booking.booking_number}"),
+        ]),
+        _display_value(instruction),
+        BOT_NOTIFICATION_FOOTER,
+    ])
+    return "\n\n".join(sections)
 
 
 def _render_new_booking_notification(booking: Booking) -> str:
     return _render_booking_notification(
-        "Booking Ruang Baru",
+        "Informasi Penggunaan Ruang Meeting",
         booking,
-        "Koordinasi",
-        "Hubungi PIC terkait penggunaan ruang.",
+        _format_booking_intro(booking, "telah menjadwalkan penggunaan ruangan:"),
+        "Mohon koordinasi dengan PIC bila diperlukan.",
     )
 
 
@@ -89,13 +149,13 @@ def _get_user_display_name(booking: Booking) -> str:
 
 
 def _get_division_display(booking: Booking) -> str:
-    return booking.division or booking.user_snapshot.division or "-"
+    return booking.division or booking.user_snapshot.division or ""
 
 
 def _format_consumption_facilities(booking: Booking) -> str:
     facilities = getattr(booking, "consumption_facilities", None) or []
     if not facilities:
-        return "-"
+        return ""
     return "\n".join(f"• {facility}" for facility in facilities)
 
 
@@ -103,10 +163,10 @@ def _format_consumption_note(booking: Booking) -> str:
     """Render each non-empty consumption line as one consistent list item."""
     note = getattr(booking, "consumption_note", None)
     if not note or not str(note).strip():
-        return "-"
+        return ""
 
     items = [line.strip().lstrip("•- ").strip() for line in str(note).splitlines()]
-    return "\n".join(f"• {item}" for item in items if item) or "-"
+    return "\n".join(f"• {item}" for item in items if item)
 
 
 async def send_telegram_message(chat_id: int, message: str, parse_mode: str = "HTML") -> bool:
@@ -353,7 +413,7 @@ async def notify_new_booking(booking: Booking):
 
 def _format_changed_fields(changed_fields: Optional[list[str]]) -> str:
     if not changed_fields:
-        return "-"
+        return ""
     return ", ".join(changed_fields)
 
 
@@ -369,10 +429,10 @@ async def notify_booking_updated(
     """
     group_id = chat_id if chat_id is not None else booking.telegram_group_id
     message = _render_booking_notification(
-        "Booking Ruang Diubah",
+        "Perubahan Penggunaan Ruang Meeting",
         booking,
-        "Perhatian",
-        "Perhatikan perubahan jadwal ini.",
+        _format_booking_intro(booking, "telah memperbarui jadwal penggunaan ruangan:"),
+        "Mohon gunakan jadwal terbaru ini sebagai acuan.",
         leading_blocks=[("Perubahan", _format_changed_fields(changed_fields))],
     )
     
@@ -384,11 +444,11 @@ async def notify_booking_target_removed(booking: Booking, chat_id: int, target_l
     Notify an old target group that the booking is no longer routed there.
     """
     message = _render_booking_notification(
-        "Tujuan Notifikasi Diubah",
+        "Perubahan Tujuan Notifikasi",
         booking,
-        "Perhatian",
-        "Abaikan referensi lama untuk jadwal ini.",
-        leading_blocks=[("Tujuan Sebelumnya", target_label)],
+        "Booking berikut tidak lagi dikirim ke grup ini:",
+        "Silakan abaikan notifikasi sebelumnya dari booking ini.",
+        leading_blocks=[("Tujuan sebelumnya", target_label)],
     )
 
     await send_telegram_message(chat_id, message)
@@ -401,10 +461,10 @@ async def notify_booking_cancelled(booking: Booking, chat_id: Optional[int] = No
     """
     group_id = chat_id if chat_id is not None else booking.telegram_group_id
     message = _render_booking_notification(
-        "Booking Ruang Dibatalkan",
+        "Pembatalan Penggunaan Ruang Meeting",
         booking,
-        "Status",
-        "Ruangan kini tersedia pada jam tersebut.",
+        _format_booking_intro(booking, "telah membatalkan penggunaan ruangan berikut:"),
+        "Ruangan tersedia kembali pada jadwal tersebut.",
     )
     
     await send_telegram_message(group_id, message)
@@ -425,15 +485,14 @@ async def test_notification(group_id: int) -> bool:
     if not group:
         return False
     
-    sent_at = datetime.now(timezone.utc).astimezone(settings.timezone).strftime(
-        "%d/%m/%Y %H.%M.%S WIB"
-    )
+    sent_at = datetime.now(timezone.utc).astimezone(settings.timezone)
     message = (
-        "<b>Test Notifikasi</b>\n\n"
+        "<b>Test Notifikasi Bot Booking Room</b>\n\n"
         f"<b>Grup:</b> {_display_value(group.group_name)}\n"
-        f"<b>Waktu:</b> {_display_value(sent_at)}\n\n"
-        "<blockquote><b>Status</b>\n"
-        "Notifikasi Booking Room berhasil dikirim.</blockquote>"
+        f"<b>Waktu kirim:</b> {_display_value(_format_notification_date(sent_at))}, "
+        f"{_display_value(format_time_indonesian(sent_at).replace(':', '.'))}\n\n"
+        "<b>Status:</b> Notifikasi berhasil dikirim ke grup ini.\n\n"
+        f"{BOT_NOTIFICATION_FOOTER}"
     )
     
     return await send_telegram_message(group_id, message)
@@ -451,15 +510,23 @@ async def notify_consumption_group(booking: Booking, is_update: bool = False):
         return
     
     title = (
-        "Perubahan Konsumsi"
+        "Perubahan Permintaan Konsumsi"
         if is_update
-        else "Permintaan Konsumsi"
+        else "Permintaan Konsumsi Ruang Meeting"
+    )
+    intro = _format_booking_intro(
+        booking,
+        "telah memperbarui kebutuhan konsumsi:"
+        if is_update
+        else "telah mengajukan kebutuhan konsumsi untuk penggunaan ruangan:",
     )
     message = _render_booking_notification(
         title,
         booking,
-        "Koordinasi",
-        "Siapkan konsumsi sesuai permintaan.",
+        intro,
+        "Mohon gunakan detail konsumsi terbaru ini sebagai acuan."
+        if is_update
+        else "Mohon siapkan konsumsi sesuai permintaan.",
         trailing_blocks=[
             ("Fasilitas", _format_consumption_facilities(booking)),
             ("Konsumsi", _format_consumption_note(booking)),
@@ -478,14 +545,10 @@ async def notify_consumption_group_cancelled(booking: Booking, chat_id: Optional
         return
 
     message = _render_booking_notification(
-        "Konsumsi Dibatalkan",
+        "Pembatalan Permintaan Konsumsi",
         booking,
-        "Status",
-        "Hentikan persiapan konsumsi bila sudah dijadwalkan.",
-        trailing_blocks=[
-            ("Fasilitas", _format_consumption_facilities(booking)),
-            ("Konsumsi", _format_consumption_note(booking)),
-        ],
+        "Permintaan konsumsi untuk booking berikut telah dibatalkan:",
+        "Mohon hentikan persiapan konsumsi untuk booking ini.",
     )
 
     await send_telegram_message(group_id, message)
@@ -527,12 +590,12 @@ async def notify_verification_group_cleanup(booking: Booking):
         return
     
     message = _render_booking_notification(
-        "Meeting Selesai",
+        "Penggunaan Ruang Meeting Selesai",
         booking,
-        "Tindakan",
-        "Rapikan dan bersihkan ruangan setelah penggunaan.",
-        date_value=format_date_indonesian(booking.end_time),
-        time_value=format_time_indonesian(booking.end_time).replace(":", "."),
+        _format_booking_intro(booking, "telah selesai menggunakan ruangan:"),
+        "Mohon rapikan dan bersihkan ruangan setelah penggunaan.",
+        date_value=_format_notification_date(booking.end_time),
+        time_value=f"{_to_notification_timezone(booking.end_time).strftime('%H.%M')} WIB",
     )
     
     await send_telegram_message(booking.verification_group_id, message)
