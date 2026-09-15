@@ -77,45 +77,90 @@ def verify_telegram_hash(query_string: str) -> bool:
         ).hexdigest()
         
         # Compare hashes
-        return computed_hash == auth_hash
+        return hmac.compare_digest(computed_hash, auth_hash)
         
     except Exception as e:
         print(f"Error verifying Telegram hash: {e}")
         return False
 
 
-def verify_telegram_init_data(init_data: str) -> Dict[str, Any]:
+def verify_telegram_web_app_hash(init_data: str) -> bool:
+    """Verify Telegram Mini App initData using the WebAppData secret."""
+    try:
+        params = parse_qs(init_data)
+        auth_hash = params.get("hash", [None])[0]
+        if not auth_hash:
+            return False
+
+        data_check_string = "\n".join(
+            f"{key}={params[key][0]}"
+            for key in sorted(params)
+            if key != "hash"
+        )
+        secret_key = hmac.new(
+            b"WebAppData",
+            settings.BOT_TOKEN.encode(),
+            sha256,
+        ).digest()
+        computed_hash = hmac.new(
+            secret_key,
+            data_check_string.encode(),
+            sha256,
+        ).hexdigest()
+        return hmac.compare_digest(computed_hash, auth_hash)
+    except (TypeError, ValueError, KeyError):
+        return False
+
+
+def validate_telegram_init_data(
+    init_data: str,
+    max_age_seconds: Optional[int] = None,
+) -> tuple[Optional[Dict[str, Any]], Optional[str]]:
+    """Validate signed Mini App data and return user plus stable error code."""
+    if not verify_telegram_web_app_hash(init_data):
+        return None, "INVALID_INIT_DATA"
+
+    try:
+        params = parse_qs(init_data)
+        user_data = params.get('user', [None])[0]
+
+        if max_age_seconds is not None:
+            auth_date_value = params.get('auth_date', [None])[0]
+            if not auth_date_value:
+                return None, "INVALID_INIT_DATA"
+            auth_date = datetime.fromtimestamp(int(auth_date_value), tz=dt_timezone.utc)
+            age_seconds = (datetime.now(dt_timezone.utc) - auth_date).total_seconds()
+            if age_seconds < -30 or age_seconds > max_age_seconds:
+                return None, "INIT_DATA_EXPIRED"
+
+        if not user_data:
+            return None, "INVALID_INIT_DATA"
+
+        import json
+        user = json.loads(user_data)
+        if not isinstance(user.get('id'), int):
+            return None, "INVALID_INIT_DATA"
+        return {
+            'id': user.get('id'),
+            'first_name': user.get('first_name'),
+            'last_name': user.get('last_name', ''),
+            'username': user.get('username'),
+            'language_code': user.get('language_code'),
+            'photo_url': user.get('photo_url')
+        }, None
+    except (TypeError, ValueError, KeyError):
+        return None, "INVALID_INIT_DATA"
+
+
+def verify_telegram_init_data(init_data: str, max_age_seconds: Optional[int] = None) -> Optional[Dict[str, Any]]:
     """
     Verify Telegram Mini App initData and return user data.
     
     Returns:
         Dictionary with user data if valid, None otherwise
     """
-    if not verify_telegram_hash(init_data):
-        return None
-    
-    try:
-        params = parse_qs(init_data)
-        user_data = params.get('user', [None])[0]
-        
-        if user_data:
-            # Parse JSON string
-            import json
-            user = json.loads(user_data)
-            return {
-                'id': user.get('id'),
-                'first_name': user.get('first_name'),
-                'last_name': user.get('last_name', ''),
-                'username': user.get('username'),
-                'language_code': user.get('language_code'),
-                'photo_url': user.get('photo_url')
-            }
-        
-        return None
-        
-    except Exception as e:
-        print(f"Error parsing Telegram init data: {e}")
-        return None
+    user_data, _ = validate_telegram_init_data(init_data, max_age_seconds=max_age_seconds)
+    return user_data
 
 
 def verify_external_token(token: str) -> Optional[Dict[str, Any]]:

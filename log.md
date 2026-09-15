@@ -28,3 +28,4 @@
 [2026-09-11 10:56] [booking-room] Origin-to-staging sync -> merged origin main d49f813 with staging main and pushed verified staging main merge commit e4be187. Temporary merge worktree removed; local main unchanged.
 [2026-09-11 13:36] [booking-room] Origin-to-staging sync -> merged origin main c84af55 with staging main and pushed verified staging main merge commit 9e86293. Temporary merge worktree removed; local main unchanged.
 [2026-09-14 09:44] [booking-room] Origin-to-staging sync -> merged origin main 7720e6b with staging main and pushed verified staging main merge commit 81d1095. Origin removed 35 stale docs/helpers/assets; remote head verified.
+[2026-09-14 15:29] [booking-room] Origin-to-staging sync -> merged origin main fba82e5 with staging main and pushed verified staging main merge commit 61641b6. Remote head verified; temporary worktree removed.

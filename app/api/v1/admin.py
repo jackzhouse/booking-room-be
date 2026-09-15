@@ -548,6 +548,28 @@ async def update_user(
         )
 
 
+@router.delete("/users/{user_id}/telegram-link")
+async def admin_unlink_user_telegram(
+    user_id: str,
+    current_user: User = Depends(get_current_admin_user),
+):
+    """Remove a user's Telegram identity so it can be linked again."""
+    user = await User.get(user_id)
+    if not user or user.is_deleted:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    user.telegram_id = None
+    user.telegram_username = None
+    user.updated_by = current_user.id
+    user.updated_at = datetime.now(timezone.utc)
+    await user.save()
+
+    return SuccessResponse(
+        success=True,
+        data=convert_user_to_management_response(user).model_dump(),
+    )
+
+
 @router.get("/settings/group-ids")
 async def get_group_ids(
     current_user: User = Depends(get_current_admin_user)

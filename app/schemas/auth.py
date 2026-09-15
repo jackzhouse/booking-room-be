@@ -23,6 +23,19 @@ class TelegramMiniAppRequest(BaseModel):
     init_data: str  # URL-encoded initData from Telegram
 
 
+class TelegramLinkStatusData(BaseModel):
+    status: str
+    telegram_username: Optional[str] = None
+    expires_at: Optional[datetime] = None
+    expires_in: Optional[int] = None
+    error_code: Optional[str] = None
+
+
+class TelegramLinkStatusResponse(BaseModel):
+    success: bool
+    data: TelegramLinkStatusData
+
+
 class UserResponse(BaseModel):
     """Response schema for user data"""
     model_config = ConfigDict(populate_by_name=True)

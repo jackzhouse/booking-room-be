@@ -4,10 +4,18 @@ Stores codes in MongoDB with expiration tracking.
 """
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict, Any
-import random
+import secrets
+from bson import ObjectId
 
 from app.core.config import settings
 from app.models.auth_code import AuthCode
+from app.models.user import User
+
+
+class LinkCodeRateLimitError(Exception):
+    def __init__(self, retry_after: int):
+        self.retry_after = retry_after
+        super().__init__(f"Try again in {retry_after} seconds")
 
 
 def convert_utc_to_jakarta(dt: datetime) -> datetime:
@@ -35,7 +43,13 @@ class AuthCodeService:
         """Initialize auth code service."""
         self.code_expiry_minutes = 3  # Codes expire after 3 minutes
     
-    async def generate_code(self, telegram_user_id: Optional[int] = None) -> tuple[str, datetime]:
+    async def generate_code(
+        self,
+        telegram_user_id: Optional[int] = None,
+        *,
+        purpose: str = "login",
+        target_user_id: Optional[ObjectId] = None,
+    ) -> tuple[str, datetime]:
         """
         Generate a random 6-digit authentication code.
         
@@ -53,12 +67,11 @@ class AuthCodeService:
         # Generate unique 6-digit random code
         max_attempts = 10
         for _ in range(max_attempts):
-            code = "".join([str(random.randint(0, 9)) for _ in range(6)])
+            code = f"{secrets.randbelow(1_000_000):06d}"
             
             # Check if code already exists
             existing = await AuthCode.find_one(AuthCode.code == code)
-            # Only use if code doesn't exist or if it's already used
-            if not existing or existing.used:
+            if not existing:
                 break
         else:
             raise ValueError("Could not generate unique code after multiple attempts")
@@ -71,6 +84,8 @@ class AuthCodeService:
         auth_code = AuthCode(
             code=code,
             telegram_user_id=telegram_user_id,  # Optional: Link code to specific user if provided
+            purpose=purpose,
+            target_user_id=target_user_id,
             created_at=now.astimezone(timezone.utc),
             expires_at=expires_at_jakarta.astimezone(timezone.utc),
             used=False
@@ -85,6 +100,34 @@ class AuthCodeService:
         print(f"✅ Expires at (Jakarta): {expires_at_jakarta}")
         
         return code, expires_at_jakarta
+
+    async def generate_link_code(self, target_user_id: ObjectId) -> tuple[str, datetime]:
+        now_utc = datetime.now(timezone.utc)
+        pending_codes = await AuthCode.find({
+            "purpose": "telegram_link",
+            "target_user_id": target_user_id,
+            "used": False,
+        }).to_list()
+
+        newest_pending = max(pending_codes, key=lambda item: item.created_at, default=None)
+        if newest_pending:
+            created_at = newest_pending.created_at
+            if created_at.tzinfo is None:
+                created_at = created_at.replace(tzinfo=timezone.utc)
+            age_seconds = (now_utc - created_at).total_seconds()
+            if age_seconds < 10:
+                raise LinkCodeRateLimitError(max(1, int(10 - age_seconds)))
+
+        for pending_code in pending_codes:
+            pending_code.used = True
+            pending_code.used_at = now_utc
+            pending_code.completion_error = "CODE_REPLACED"
+            await pending_code.save()
+
+        return await self.generate_code(
+            purpose="telegram_link",
+            target_user_id=target_user_id,
+        )
     
     async def verify_code(self, code: str) -> Optional[AuthCode]:
         """
@@ -166,6 +209,9 @@ class AuthCodeService:
         
         if not auth_code:
             return False, "Code not found"
+
+        if auth_code.purpose == "telegram_link":
+            return False, "LINK_CODE_REQUIRES_LINK_COMPLETION"
         
         # Check if code is already used
         if auth_code.used:
@@ -190,6 +236,112 @@ class AuthCodeService:
         await auth_code.save()
         print(f"✅ AuthCodeService: Code {code} marked as used by user {requesting_user_id}")
         return True, ""
+
+    async def complete_telegram_link(
+        self,
+        code: str,
+        telegram_user_data: Dict[str, Any],
+    ) -> tuple[bool, str, Optional[User]]:
+        """Bind verified Telegram identity to link-code owner."""
+        auth_code = await AuthCode.find_one(AuthCode.code == code)
+        if not auth_code or auth_code.purpose != "telegram_link" or not auth_code.target_user_id:
+            return False, "CODE_NOT_FOUND", None
+
+        now_utc = datetime.now(timezone.utc)
+        expires_at = auth_code.expires_at
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        if auth_code.used or now_utc > expires_at:
+            return False, "CODE_EXPIRED", None
+
+        target_user = await User.get(auth_code.target_user_id)
+        if not target_user or target_user.is_deleted or not target_user.is_active:
+            auth_code.used = True
+            auth_code.used_at = now_utc
+            auth_code.completion_error = "TARGET_USER_UNAVAILABLE"
+            await auth_code.save()
+            return False, auth_code.completion_error, None
+
+        telegram_id = telegram_user_data.get("id")
+        if not isinstance(telegram_id, int):
+            return False, "INVALID_TELEGRAM_USER", None
+
+        linked_user = await User.find_one(User.telegram_id == telegram_id)
+        if linked_user and linked_user.id != target_user.id:
+            auth_code.telegram_user_data = telegram_user_data
+            auth_code.used = True
+            auth_code.used_at = now_utc
+            auth_code.completion_error = "TELEGRAM_ALREADY_LINKED"
+            await auth_code.save()
+            return False, auth_code.completion_error, None
+
+        if target_user.telegram_id is not None and target_user.telegram_id != telegram_id:
+            auth_code.telegram_user_data = telegram_user_data
+            auth_code.used = True
+            auth_code.used_at = now_utc
+            auth_code.completion_error = "TARGET_ALREADY_LINKED"
+            await auth_code.save()
+            return False, auth_code.completion_error, None
+
+        username = telegram_user_data.get("username")
+        target_user.telegram_id = telegram_id
+        target_user.telegram_username = f"@{username}" if username else None
+        target_user.last_login_at = now_utc
+        target_user.updated_at = now_utc
+        await target_user.save()
+
+        auth_code.telegram_user_id = telegram_id
+        auth_code.telegram_user_data = telegram_user_data
+        auth_code.used = True
+        auth_code.used_at = now_utc
+        auth_code.completion_error = None
+        await auth_code.save()
+        return True, "", target_user
+
+    async def get_link_status(self, code: str, target_user_id: ObjectId) -> Dict[str, Any]:
+        auth_code = await AuthCode.find_one(AuthCode.code == code)
+        if (
+            not auth_code
+            or auth_code.purpose != "telegram_link"
+            or auth_code.target_user_id != target_user_id
+        ):
+            return {"status": "expired", "error_code": "CODE_NOT_FOUND"}
+
+        expires_at = auth_code.expires_at
+        if expires_at.tzinfo is None:
+            expires_at = expires_at.replace(tzinfo=timezone.utc)
+        now_utc = datetime.now(timezone.utc)
+
+        if auth_code.completion_error:
+            return {
+                "status": "conflict" if auth_code.completion_error in {
+                    "TELEGRAM_ALREADY_LINKED",
+                    "TARGET_ALREADY_LINKED",
+                } else "expired",
+                "error_code": auth_code.completion_error,
+                "expires_at": expires_at,
+                "expires_in": 0,
+            }
+        if auth_code.used and auth_code.telegram_user_id:
+            username = (auth_code.telegram_user_data or {}).get("username")
+            return {
+                "status": "linked",
+                "telegram_username": f"@{username}" if username else None,
+                "expires_at": expires_at,
+                "expires_in": 0,
+            }
+        if now_utc > expires_at:
+            return {
+                "status": "expired",
+                "error_code": "CODE_EXPIRED",
+                "expires_at": expires_at,
+                "expires_in": 0,
+            }
+        return {
+            "status": "pending",
+            "expires_at": expires_at,
+            "expires_in": int((expires_at - now_utc).total_seconds()),
+        }
     
     async def get_code_info(self, code: str) -> Optional[AuthCode]:
         """

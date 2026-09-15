@@ -5,7 +5,7 @@ from bson import ObjectId
 from urllib.parse import urlencode
 from pydantic import BaseModel
 
-from app.core.security import create_access_token, verify_telegram_hash, verify_telegram_init_data, verify_external_token
+from app.core.security import create_access_token, verify_telegram_hash, validate_telegram_init_data, verify_external_token
 from app.core.config import settings
 from app.models.user import User
 from app.schemas.auth import (
@@ -25,9 +25,11 @@ from app.schemas.auth import (
     ExternalRegisterRequest,
     ExternalRegisterResponse,
     CurrentUserProfileUpdate,
+    TelegramLinkStatusData,
+    TelegramLinkStatusResponse,
 )
 from app.api.deps import get_current_user, get_user_by_telegram_id
-from app.services.auth_code_service import auth_code_service
+from app.services.auth_code_service import LinkCodeRateLimitError, auth_code_service
 from app.services.katalis_service import (
     ExternalAuthError,
     extract_account_id,
@@ -160,16 +162,42 @@ async def telegram_mini_app_login(request: TelegramMiniAppRequest):
     Verifies the initData from Telegram Mini App and returns a JWT token.
     """
     # Verify Telegram initData
-    user_data = verify_telegram_init_data(request.init_data)
+    user_data, validation_error = validate_telegram_init_data(
+        request.init_data,
+        max_age_seconds=300,
+    )
     
     if not user_data:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid Telegram Mini App authentication"
+            detail={
+                "code": validation_error or "INVALID_INIT_DATA",
+                "message": "Invalid Telegram Mini App authentication",
+            }
         )
-    
-    # Create or update user
-    user = await create_or_update_user(user_data)
+
+    user = await User.find_one(User.telegram_id == user_data["id"])
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "code": "TELEGRAM_NOT_LINKED",
+                "message": "Telegram account is not linked to a Booking Room user",
+            },
+        )
+    if not user.is_active or user.is_deleted:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={"code": "USER_INACTIVE", "message": "User account is inactive"},
+        )
+
+    telegram_username = user_data.get("username")
+    user.telegram_username = f"@{telegram_username}" if telegram_username else None
+    if not user.external_user_id and not user.account_id:
+        user.username = telegram_username
+        user.avatar_url = user_data.get("photo_url")
+    user.last_login_at = datetime.now(timezone.utc)
+    await user.save()
     
     # Generate JWT token
     access_token = create_access_token(data={"sub": str(user.id)})
@@ -178,6 +206,51 @@ async def telegram_mini_app_login(request: TelegramMiniAppRequest):
         access_token=access_token,
         user=UserResponse(**user.model_dump(by_alias=True))
     )
+
+
+@router.post("/telegram-link/code", response_model=AuthCodeResponse)
+async def generate_telegram_link_code(current_user: User = Depends(get_current_user)):
+    """Create a one-time code owned by the signed-in user."""
+    try:
+        code, expires_at = await auth_code_service.generate_link_code(current_user.id)
+    except LinkCodeRateLimitError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={
+                "code": "LINK_CODE_RATE_LIMITED",
+                "message": "Please wait before creating another Telegram link code",
+                "retry_after": exc.retry_after,
+            },
+        ) from exc
+    expires_in = max(0, int((expires_at - datetime.now(settings.timezone)).total_seconds()))
+    return AuthCodeResponse(
+        success=True,
+        data=AuthCodeData(code=code, expires_at=expires_at, expires_in=expires_in),
+    )
+
+
+@router.get("/telegram-link/status", response_model=TelegramLinkStatusResponse)
+async def get_telegram_link_status(
+    code: str = Query(..., min_length=6, max_length=6),
+    current_user: User = Depends(get_current_user),
+):
+    """Poll link status without exposing codes owned by another user."""
+    link_status = await auth_code_service.get_link_status(code, current_user.id)
+    return TelegramLinkStatusResponse(
+        success=link_status["status"] in {"pending", "linked"},
+        data=TelegramLinkStatusData(**link_status),
+    )
+
+
+@router.delete("/telegram-link", response_model=UserResponse)
+async def unlink_current_user_telegram(current_user: User = Depends(get_current_user)):
+    """Remove Telegram identity from the signed-in user."""
+    current_user.telegram_id = None
+    current_user.telegram_username = None
+    current_user.updated_at = datetime.now(timezone.utc)
+    current_user.updated_by = current_user.id
+    await current_user.save()
+    return UserResponse(**current_user.model_dump(by_alias=True))
 
 
 @router.post("/generate-code", response_model=AuthCodeResponse)
@@ -375,6 +448,20 @@ async def update_current_user_profile(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="No profile fields supplied",
+        )
+
+    requested_telegram_username = update_data.get("telegram_username")
+    if (
+        current_user.telegram_id is not None
+        and "telegram_username" in update_data
+        and requested_telegram_username != current_user.telegram_username
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "code": "TELEGRAM_USERNAME_MANAGED",
+                "message": "Telegram username is managed by the linked Telegram account",
+            },
         )
 
     for field, value in update_data.items():

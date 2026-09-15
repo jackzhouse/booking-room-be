@@ -4,8 +4,7 @@ Stores temporary codes for Telegram bot authorization.
 """
 from datetime import datetime
 from typing import Optional, Dict, Any
-from beanie import Document, Indexed
-from bson import ObjectId
+from beanie import Document, Indexed, PydanticObjectId
 
 from app.core.config import settings
 
@@ -21,6 +20,15 @@ class AuthCode(Document):
     
     telegram_user_data: Optional[Dict[str, Any]] = None
     """Telegram user data associated with this code (after verification)."""
+
+    purpose: str = "login"
+    """Code purpose: login or telegram_link."""
+
+    target_user_id: Optional[PydanticObjectId] = None
+    """Local user that owns a telegram_link code."""
+
+    completion_error: Optional[str] = None
+    """Terminal link error, such as TELEGRAM_ALREADY_LINKED."""
     
     created_at: datetime
     """Timestamp when code was created."""
