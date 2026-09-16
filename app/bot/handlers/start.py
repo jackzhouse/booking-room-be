@@ -44,7 +44,9 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "Ketik /help untuk informasi lebih lanjut."
         )
     
-    await update.message.reply_text(welcome_message, parse_mode="Markdown")
+    # User names and configured URLs can contain Markdown control characters.
+    # Plain text keeps every command response deliverable for arbitrary data.
+    await update.message.reply_text(welcome_message)
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):

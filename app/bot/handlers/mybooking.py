@@ -5,6 +5,7 @@ from telegram.ext import ContextTypes
 from app.models.user import User
 from app.models.booking import Booking
 from app.services.telegram_service import format_date_indonesian, format_time_range
+from app.bot.handlers.reply import reply_in_chunks
 
 
 async def mybooking(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -33,23 +34,23 @@ async def mybooking(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     if not bookings:
         message = (
-            f"📅 *Booking Aktif*\n\n"
+            f"📅 Booking Aktif\n\n"
             f"Halo {db_user.full_name}!\n\n"
             "Kamu tidak memiliki booking aktif saat ini.\n\n"
             "Buat booking baru lewat aplikasi web."
         )
-        await update.message.reply_text(message, parse_mode="Markdown")
+        await update.message.reply_text(message)
         return
     
     # Format bookings list
-    message = f"📅 *Booking Aktif*\n\n"
+    message = f"📅 Booking Aktif\n\n"
     message += f"👤 {db_user.full_name}\n"
     if db_user.division:
         message += f"🏢 {db_user.division}\n"
     message += f"\n"
     
     for idx, booking in enumerate(bookings, 1):
-        message += f"*{idx}. {booking.booking_number}*\n"
+        message += f"{idx}. {booking.booking_number}\n"
         message += f"🚪 {booking.room_snapshot.name}\n"
         message += f"📌 {booking.title}\n"
         message += f"🕐 {format_date_indonesian(booking.start_time)}\n"
@@ -57,4 +58,4 @@ async def mybooking(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     message += f"Total: {len(bookings)} booking aktif"
     
-    await update.message.reply_text(message, parse_mode="Markdown")
+    await reply_in_chunks(update.message, message)

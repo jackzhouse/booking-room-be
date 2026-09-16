@@ -43,6 +43,23 @@ application.add_handler(schedule_handler)
 application.add_handler(cancel_handler)
 application.add_handler(authorize_handler)
 
+
+async def handle_command_error(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Log handler failures and give the command sender a usable response."""
+    logger.error("Telegram command handler failed", exc_info=context.error)
+    message = getattr(update, "effective_message", None)
+    if message is None or not (getattr(message, "text", None) or "").startswith("/"):
+        return
+    try:
+        await message.reply_text(
+            "❌ Perintah belum dapat diproses. Coba lagi sesaat lagi atau hubungi admin."
+        )
+    except Exception:
+        logger.exception("Could not send Telegram command failure response")
+
+
+application.add_error_handler(handle_command_error)
+
 # Initialize application once (not for every update)
 application_started = False
 

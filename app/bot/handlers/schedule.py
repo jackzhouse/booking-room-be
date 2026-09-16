@@ -7,6 +7,7 @@ from app.models.user import User
 from app.models.room import Room
 from app.models.booking import Booking
 from app.services.telegram_service import format_date_indonesian, format_time_range
+from app.bot.handlers.reply import reply_in_chunks
 
 
 async def schedule(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -63,7 +64,7 @@ async def schedule(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # Build schedule message
     date_display = format_date_indonesian(start_datetime)
-    message = f"📋 *Jadwal Ruangan*\n\n"
+    message = f"📋 Jadwal Ruangan\n\n"
     message += f"📅 {date_display}\n\n"
     
     total_bookings = 0
@@ -77,7 +78,7 @@ async def schedule(update: Update, context: ContextTypes.DEFAULT_TYPE):
         }).sort(Booking.start_time).to_list()
         
         if bookings:
-            message += f"🚪 *{room.name}*\n"
+            message += f"🚪 {room.name}\n"
             
             for booking in bookings:
                 message += f"  📌 {booking.title}\n"
@@ -89,10 +90,12 @@ async def schedule(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 
                 total_bookings += 1
         else:
-            message += f"🚪 *{room.name}*\n"
+            message += f"🚪 {room.name}\n"
             message += f"  ✅ Tidak ada booking\n\n"
     
     if total_bookings == 0:
         message += "\n✨ Tidak ada booking pada tanggal ini."
     
-    await update.message.reply_text(message, parse_mode="Markdown")
+    # Booking titles, room names, and employee details are user-controlled.
+    # Do not parse them as Telegram Markdown.
+    await reply_in_chunks(update.message, message)

@@ -91,7 +91,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         
         message = (
-            f"✅ *Booking Berhasil Dibatalkan*\n\n"
+            f"✅ Booking Berhasil Dibatalkan\n\n"
             f"🆔 {booking.booking_number}\n"
             f"🚪 {booking.room_snapshot.name}\n"
             f"📌 {booking.title}\n"
@@ -99,7 +99,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
             f"⏰ {format_time_range(booking.start_time, booking.end_time)}\n\n"
             "Notifikasi telah dikirim ke grup Telegram."
         )
-        await update.message.reply_text(message, parse_mode="Markdown")
+        await update.message.reply_text(message)
         
     except Exception as e:
         message = (
