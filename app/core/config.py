@@ -45,6 +45,7 @@ class Settings(BaseSettings):
     WEBHOOK_BASE_URL: str = "https://localhost:8000"
     WEBHOOK_SECRET_TOKEN: Optional[str] = None
     ADMIN_TELEGRAM_ID: Optional[int] = None
+    TELEGRAM_MINI_APP_URL: Optional[str] = None
 
     # External App Integration (e.g., Katalis)
     # External apps use the same SECRET_KEY for JWT encoding/decoding
@@ -76,6 +77,11 @@ class Settings(BaseSettings):
         if not self.BOT_TOKEN:
             return ""
         return f"{self.WEBHOOK_BASE_URL.rstrip('/')}/api/v1/webhook/telegram"
+
+    @property
+    def telegram_mini_app_url(self) -> str:
+        """Public HTTPS URL opened by Telegram's Mini App buttons."""
+        return (self.TELEGRAM_MINI_APP_URL or f"{self.FRONTEND_URL.rstrip('/')}/telegram").strip()
 
 def load_settings_from_consul():
     """Load settings from Consul key-value store"""

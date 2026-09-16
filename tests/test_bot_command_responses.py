@@ -78,6 +78,19 @@ def test_start_with_markdown_characters_uses_plain_text(monkeypatch):
     assert update.message.reply_text.call_args.kwargs.get("parse_mode") is None
 
 
+def test_start_includes_mini_app_button(monkeypatch):
+    update = make_update()
+    FakeUserModel.result = None
+    monkeypatch.setattr(start, "User", FakeUserModel)
+    monkeypatch.setattr(start.settings, "TELEGRAM_MINI_APP_URL", "https://booking.test/telegram")
+
+    asyncio.run(start.start(update, SimpleNamespace()))
+
+    markup = update.message.reply_text.call_args.kwargs["reply_markup"]
+    button = markup.inline_keyboard[0][0]
+    assert button.web_app.url == "https://booking.test/telegram"
+
+
 def test_schedule_with_markdown_characters_uses_plain_text(monkeypatch):
     update = make_update()
     db_user = SimpleNamespace(id="user-1")

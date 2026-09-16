@@ -271,6 +271,7 @@ curl -X POST "http://localhost:8000/api/v1/admin/settings/test-notification" \
 | `BOT_TOKEN` | Telegram bot token | Yes |
 | `WEBHOOK_BASE_URL` | Base URL for webhook | Yes |
 | `ADMIN_TELEGRAM_ID` | Admin Telegram ID | Yes |
+| `TELEGRAM_MINI_APP_URL` | Optional HTTPS URL for Telegram Mini App; defaults to `${FRONTEND_URL}/telegram` | No |
 
 ## Testing
 
@@ -297,6 +298,12 @@ Dockerfile and docker-compose.yml will be provided for production deployment.
 - Ensure `WEBHOOK_BASE_URL` is publicly accessible
 - Check bot token is correct
 - Verify webhook URL is set correctly
+
+### Telegram Desktop Mini App
+- Backend startup configures the bot Menu Button to `TELEGRAM_MINI_APP_URL` (or `${FRONTEND_URL}/telegram`).
+- `/start` also sends an inline `Buka Mini App` button.
+- `FRONTEND_URL` or `TELEGRAM_MINI_APP_URL` must be the deployed HTTPS frontend URL; localhost and HTTP URLs are rejected by Telegram.
+- After deployment, open the bot chat in Telegram Desktop and use the chat menu or `/start` button.
 
 ### Booking Conflicts
 - Check operating hours settings

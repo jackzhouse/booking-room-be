@@ -1,7 +1,7 @@
 import logging
 import asyncio
 from hmac import compare_digest
-from telegram import Update
+from telegram import MenuButtonWebApp, Update, WebAppInfo
 from telegram.ext import Application, CommandHandler, ContextTypes
 
 from app.core.config import settings
@@ -178,6 +178,13 @@ async def set_webhook():
         if settings.WEBHOOK_SECRET_TOKEN:
             webhook_kwargs["secret_token"] = settings.WEBHOOK_SECRET_TOKEN
         await temp_app.bot.set_webhook(**webhook_kwargs)
+        await temp_app.bot.set_chat_menu_button(
+            menu_button=MenuButtonWebApp(
+                text="Booking Room",
+                web_app=WebAppInfo(url=settings.telegram_mini_app_url),
+            )
+        )
+        logger.info("✅ Telegram Mini App menu button configured: %s", settings.telegram_mini_app_url)
         logger.info("✅ Telegram webhook set successfully with allowed_updates: %s", ", ".join(TELEGRAM_ALLOWED_UPDATES))
         await temp_app.shutdown()
     except Exception as e:

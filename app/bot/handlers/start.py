@@ -1,5 +1,5 @@
 import logging
-from telegram import Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, WebAppInfo
 from telegram.ext import ContextTypes, CommandHandler
 
 from app.models.user import User
@@ -7,6 +7,15 @@ from app.models.room import Room
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
+
+
+def mini_app_markup() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton(
+            "📱 Buka Mini App",
+            web_app=WebAppInfo(url=settings.telegram_mini_app_url),
+        )]
+    ])
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -46,7 +55,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     
     # User names and configured URLs can contain Markdown control characters.
     # Plain text keeps every command response deliverable for arbitrary data.
-    await update.message.reply_text(welcome_message)
+    await update.message.reply_text(welcome_message, reply_markup=mini_app_markup())
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
