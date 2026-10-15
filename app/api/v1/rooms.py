@@ -215,7 +215,7 @@ async def update_room(
     )
 
 
-@router.put("/{room_id}/toggle")
+@router.patch("/{room_id}/toggle")
 async def toggle_room_status(
     room_id: str,
     current_user: User = Depends(get_current_admin_user)
