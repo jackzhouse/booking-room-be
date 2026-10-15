@@ -1,10 +1,13 @@
 import asyncio
 from datetime import datetime
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, create_autospec
+
+import pytest
 
 from app.bot.handlers import cancel, mybooking, schedule, start
 from app.bot.handlers.reply import TELEGRAM_MESSAGE_LIMIT, reply_in_chunks
+from app.services import booking_service
 
 
 class Query:
@@ -167,6 +170,44 @@ def test_cancel_with_markdown_characters_uses_plain_text(monkeypatch):
     text, = update.message.reply_text.call_args.args
     assert "Plan [v2]" in text
     assert update.message.reply_text.call_args.kwargs.get("parse_mode") is None
+
+
+@pytest.mark.parametrize(
+    ("db_user", "expected_is_admin"),
+    [
+        (SimpleNamespace(id="user-1", is_admin=False, role="ROLE_USER"), False),
+        (SimpleNamespace(id="admin-1", is_admin=True, role="ROLE_SUPER_ADMIN"), True),
+    ],
+    ids=["owner", "admin-cancels-other-users-booking"],
+)
+def test_cancel_passes_arguments_accepted_by_real_cancel_booking(
+    monkeypatch, db_user, expected_is_admin
+):
+    """Regression: the handler once passed `has_admin_role=`, which cancel_booking rejects."""
+    update = make_update()
+    booking = SimpleNamespace(
+        id="booking-1",
+        booking_number="BK-00123",
+        user_id="user-1",
+        room_snapshot=SimpleNamespace(name="Ruang Utama"),
+        title="Rapat",
+        start_time=datetime(2026, 9, 15, 9),
+        end_time=datetime(2026, 9, 15, 10),
+        status="active",
+    )
+    cancel_mock = create_autospec(booking_service.cancel_booking, spec_set=True)
+    FakeUserModel.result = db_user
+    FakeBookingModel.result = booking
+    monkeypatch.setattr(cancel, "User", FakeUserModel)
+    monkeypatch.setattr(cancel, "Booking", FakeBookingModel)
+    monkeypatch.setattr(cancel, "cancel_booking", cancel_mock)
+
+    asyncio.run(cancel.cancel(update, SimpleNamespace(args=["BK-00123"])))
+
+    cancel_mock.assert_awaited_once_with(
+        booking_id="booking-1", user_id=db_user.id, is_admin=expected_is_admin
+    )
+    assert update.message.reply_text.call_args.args[0].startswith("✅ Booking Berhasil Dibatalkan")
 
 
 def test_long_response_is_split_under_telegram_limit():

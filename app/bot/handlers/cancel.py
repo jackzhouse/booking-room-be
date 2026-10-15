@@ -87,7 +87,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await cancel_booking(
             booking_id=str(booking.id),
             user_id=db_user.id,
-            has_admin_role=user_has_admin_role(db_user)
+            is_admin=user_has_admin_role(db_user)
         )
         
         message = (
