@@ -44,7 +44,7 @@ def _patch_list(monkeypatch, settings, groups):
         value = settings.get(query["key"])
         return SimpleNamespace(value=value) if value is not None else None
 
-    async def fake_get_all():
+    async def fake_get_all(include_inactive=False):
         return groups
 
     monkeypatch.setattr(telegram_groups.Setting, "find_one", fake_find_one)
@@ -59,7 +59,7 @@ def test_group_list_hides_default_consumption_and_verification_groups(monkeypatc
         [_group(-1), _group(-2), _group(-3)],
     )
 
-    result = asyncio.run(telegram_groups.get_telegram_groups_list(is_filter=True, current_user=object()))
+    result = asyncio.run(telegram_groups.get_telegram_groups_list(is_filter=True, include_inactive=False, current_user=object()))
 
     assert [group.group_id for group in result.groups] == [-1]
     assert result.total == 1
@@ -72,7 +72,7 @@ def test_group_list_keeps_everything_when_filter_is_off(monkeypatch):
         [_group(-1), _group(-2), _group(-3)],
     )
 
-    result = asyncio.run(telegram_groups.get_telegram_groups_list(is_filter=False, current_user=object()))
+    result = asyncio.run(telegram_groups.get_telegram_groups_list(is_filter=False, include_inactive=False, current_user=object()))
 
     assert [group.group_id for group in result.groups] == [-1, -2, -3]
 
@@ -80,6 +80,29 @@ def test_group_list_keeps_everything_when_filter_is_off(monkeypatch):
 def test_group_list_ignores_cleared_or_missing_defaults(monkeypatch):
     _patch_list(monkeypatch, {"default_consumption_group_id": ""}, [_group(-1), _group(-2)])
 
-    result = asyncio.run(telegram_groups.get_telegram_groups_list(is_filter=True, current_user=object()))
+    result = asyncio.run(telegram_groups.get_telegram_groups_list(is_filter=True, include_inactive=False, current_user=object()))
 
     assert [group.group_id for group in result.groups] == [-1, -2]
+
+
+def test_inactive_groups_are_returned_only_to_admins(monkeypatch):
+    seen = []
+
+    async def fake_get_all(include_inactive=False):
+        seen.append(include_inactive)
+        return []
+
+    async def fake_find_one(_query):
+        return None
+
+    monkeypatch.setattr(telegram_groups, "get_all_telegram_groups", fake_get_all)
+    monkeypatch.setattr(telegram_groups.Setting, "find_one", fake_find_one)
+
+    for is_admin in (True, False):
+        asyncio.run(telegram_groups.get_telegram_groups_list(
+            is_filter=False,
+            include_inactive=True,
+            current_user=SimpleNamespace(is_admin=is_admin),
+        ))
+
+    assert seen == [True, False]

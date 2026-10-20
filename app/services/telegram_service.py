@@ -319,34 +319,47 @@ async def get_telegram_group(group_id: int) -> Optional[TelegramGroup]:
     return group
 
 
-async def get_all_telegram_groups() -> List[TelegramGroup]:
+async def get_all_telegram_groups(include_inactive: bool = False) -> List[TelegramGroup]:
     """
-    Get all active Telegram groups.
-    
+    Get Telegram groups.
+
+    Args:
+        include_inactive: Also return deactivated groups (admin screens).
+
     Returns:
-        List of active TelegramGroup objects
+        Active TelegramGroup objects, or every group when include_inactive is set
     """
+    if include_inactive:
+        return await TelegramGroup.find_all().to_list()
     return await TelegramGroup.find(TelegramGroup.is_active == True).to_list()
 
 
 async def add_telegram_group(group_id: int, group_name: str) -> TelegramGroup:
     """
     Add a new Telegram group.
+
+    A group that exists but was deactivated (the bot left or was removed) is
+    reactivated and renamed instead of rejected.
     
     Args:
         group_id: Telegram group chat ID
         group_name: Human-readable name for display
         
     Returns:
-        Created TelegramGroup object
+        Created or reactivated TelegramGroup object
         
     Raises:
-        ValueError: If group_id already exists
+        ValueError: If an active group with group_id already exists
     """
-    # Check if group_id already exists
     existing = await TelegramGroup.find_one(TelegramGroup.group_id == group_id)
     if existing:
-        raise ValueError(f"Telegram group with ID {group_id} already exists")
+        if existing.is_active:
+            raise ValueError(f"Telegram group with ID {group_id} already exists")
+        existing.is_active = True
+        existing.group_name = group_name
+        existing.updated_at = datetime.now(timezone.utc)
+        await existing.save()
+        return existing
     
     group = TelegramGroup(
         group_id=group_id,

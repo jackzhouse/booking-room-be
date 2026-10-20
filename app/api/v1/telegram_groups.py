@@ -121,6 +121,7 @@ async def verify_telegram_group(
 @router.get("", response_model=TelegramGroupListResponse)
 async def get_telegram_groups_list(
     is_filter: bool = Query(True, alias="isFilter"),
+    include_inactive: bool = Query(False, alias="includeInactive"),
     current_user: User = Depends(get_current_active_user)
 ):
     """
@@ -133,8 +134,13 @@ async def get_telegram_groups_list(
     consumption or verification group are left out, since those only receive
     their own notifications. Pass `isFilter=false` for the complete list
     (admin screens, name lookups).
+
+    `includeInactive=true` also returns deactivated groups (bot removed); it is
+    honoured for admins only, other users always get active groups.
     """
-    groups = await get_all_telegram_groups()
+    groups = await get_all_telegram_groups(
+        include_inactive=include_inactive and bool(current_user.is_admin)
+    )
     if is_filter:
         default_ids = await get_default_group_ids()
         groups = [group for group in groups if group.group_id not in default_ids]

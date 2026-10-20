@@ -18,6 +18,8 @@ def make_update(
     old_status=ChatMemberStatus.LEFT,
     new_status=ChatMemberStatus.MEMBER,
     member_id=BOT_ID,
+    old_is_member=None,
+    new_is_member=None,
 ):
     messages = []
 
@@ -32,9 +34,10 @@ def make_update(
     )
     membership = SimpleNamespace(
         chat=chat,
-        old_chat_member=SimpleNamespace(status=old_status),
+        old_chat_member=SimpleNamespace(status=old_status, is_member=old_is_member),
         new_chat_member=SimpleNamespace(
             status=new_status,
+            is_member=new_is_member,
             user=SimpleNamespace(id=member_id),
         ),
     )
@@ -192,3 +195,48 @@ def test_handler_uses_my_chat_member_updates():
 
     assert isinstance(handler, ChatMemberHandler)
     assert handler.chat_member_types == ChatMemberHandler.MY_CHAT_MEMBER
+
+
+def test_joining_as_restricted_member_registers_group(monkeypatch):
+    fake_group = group_model()
+    monkeypatch.setattr(chat_member, "TelegramGroup", fake_group)
+    update, messages = make_update(
+        new_status=ChatMemberStatus.RESTRICTED,
+        new_is_member=True,
+    )
+
+    asyncio.run(chat_member.handle_bot_membership_update(update, context()))
+
+    assert len(fake_group.inserted) == 1
+    assert len(messages) == 1
+
+
+def test_restricted_bot_that_is_not_a_member_deactivates_group(monkeypatch):
+    existing = SimpleNamespace(group_id=GROUP_ID, group_name="Ruang Rapat", is_active=True, updated_at=None)
+    fake_group = group_model(existing=existing)
+    monkeypatch.setattr(chat_member, "TelegramGroup", fake_group)
+    update, _ = make_update(
+        old_status=ChatMemberStatus.MEMBER,
+        new_status=ChatMemberStatus.RESTRICTED,
+        new_is_member=False,
+    )
+
+    asyncio.run(chat_member.handle_bot_membership_update(update, context()))
+
+    assert existing.is_active is False
+
+
+def test_member_becoming_restricted_member_changes_nothing(monkeypatch):
+    fake_group = group_model()
+    monkeypatch.setattr(chat_member, "TelegramGroup", fake_group)
+    update, messages = make_update(
+        old_status=ChatMemberStatus.MEMBER,
+        new_status=ChatMemberStatus.RESTRICTED,
+        new_is_member=True,
+    )
+
+    asyncio.run(chat_member.handle_bot_membership_update(update, context()))
+
+    assert fake_group.inserted == []
+    assert fake_group.saved == []
+    assert messages == []

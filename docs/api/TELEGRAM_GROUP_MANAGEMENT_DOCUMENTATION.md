@@ -50,3 +50,13 @@ When a published booking is edited, the bot edits its earlier message in each gr
 
 - `isFilter=true` (default): grup yang sedang dipakai sebagai grup konsumsi/verifikasi default **tidak** ikut dikembalikan. Dipakai form booking untuk pilihan grup tujuan.
 - `isFilter=false`: daftar lengkap grup aktif. Dipakai halaman admin (grup Telegram, pengaturan), pilihan grup konsumsi, dan pencarian nama grup pada detail booking.
+- `includeInactive=true`: ikut mengembalikan grup nonaktif (bot keluar atau dikeluarkan). Hanya berlaku untuk admin; user lain selalu mendapat grup aktif.
+
+## Add a group
+
+`POST /api/v1/telegram-groups` (admin). Jika `group_id` sudah ada tetapi nonaktif, grup diaktifkan kembali dan namanya diperbarui. `409` hanya untuk grup yang masih aktif.
+
+## Bot membership sync
+
+Update `my_chat_member` mendaftarkan grup saat bot masuk (termasuk berstatus `restricted` tapi masih anggota) dan menonaktifkannya saat bot keluar. Setiap update dicatat di log: `Bot membership update: chat_id=... old -> new`.
+

@@ -10,6 +10,13 @@ from app.models.telegram_group import TelegramGroup
 logger = logging.getLogger(__name__)
 
 
+def _is_present(member) -> bool:
+    """True when the bot is inside the chat; a restricted bot still counts if it is a member."""
+    if member.status in {ChatMemberStatus.MEMBER, ChatMemberStatus.ADMINISTRATOR}:
+        return True
+    return member.status == ChatMemberStatus.RESTRICTED and bool(getattr(member, "is_member", False))
+
+
 async def handle_bot_membership_update(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """Synchronize Telegram group activity from the bot's membership updates."""
     membership = update.my_chat_member
@@ -23,16 +30,20 @@ async def handle_bot_membership_update(update: Update, context: ContextTypes.DEF
     old_status = membership.old_chat_member.status
     new_status = membership.new_chat_member.status
     chat = membership.chat
+    logger.info(
+        "Bot membership update: chat_id=%s type=%s %s -> %s",
+        chat.id, chat.type, old_status, new_status,
+    )
     if chat.type not in {"group", "supergroup"}:
         return
 
     group_id = chat.id
     group_name = chat.title or f"Group {group_id}"
 
-    joined_statuses = {ChatMemberStatus.MEMBER, ChatMemberStatus.ADMINISTRATOR}
-    absent_statuses = {ChatMemberStatus.LEFT, ChatMemberStatus.BANNED}
+    was_present = _is_present(membership.old_chat_member)
+    is_present = _is_present(membership.new_chat_member)
 
-    if old_status in joined_statuses and new_status in absent_statuses:
+    if was_present and not is_present:
         existing = await TelegramGroup.find_one({"group_id": group_id})
         if not existing or not existing.is_active:
             return
@@ -47,7 +58,7 @@ async def handle_bot_membership_update(update: Update, context: ContextTypes.DEF
             logger.info("Telegram group deactivated after bot removal: group_id=%s", group_id)
         return
 
-    if old_status not in absent_statuses or new_status not in joined_statuses:
+    if was_present or not is_present:
         return
 
     existing = await TelegramGroup.find_one({"group_id": group_id})
