@@ -9,7 +9,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from app.core.config import settings
 from app.core.cors import build_cors_origins
 from app.core.database import connect_to_mongo, close_mongo_connection, init_beanie_models
-from app.api.v1 import auth, bookings, rooms, admin, telegram_groups
+from app.api.v1 import auth, bookings, rooms, admin, telegram_groups, public
 from app.bot.webhook import set_webhook, delete_webhook, handle_webhook_update, is_valid_webhook_secret
 from app.services.scheduler_service import check_and_notify_ended_bookings
 from telegram import Update
@@ -124,6 +124,7 @@ app.include_router(bookings.router, prefix="/api/v1")
 app.include_router(rooms.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
 app.include_router(telegram_groups.router, prefix="/api/v1")
+app.include_router(public.router, prefix="/api/v1")
 
 # Public proxy compatibility: api.teknologikartu.com exposes Booking under /booking.
 # Keep internal /api/v1 routes while accepting unstripped /booking/api/v1 paths.
@@ -132,6 +133,7 @@ app.include_router(bookings.router, prefix="/booking/api/v1", include_in_schema=
 app.include_router(rooms.router, prefix="/booking/api/v1", include_in_schema=False)
 app.include_router(admin.router, prefix="/booking/api/v1", include_in_schema=False)
 app.include_router(telegram_groups.router, prefix="/booking/api/v1", include_in_schema=False)
+app.include_router(public.router, prefix="/booking/api/v1", include_in_schema=False)
 
 
 @app.post("/api/v1/webhook/telegram")
