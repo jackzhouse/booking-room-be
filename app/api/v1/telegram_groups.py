@@ -1,5 +1,5 @@
-from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
+from typing import List, Set
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from bson import ObjectId
 
 from app.models.telegram_group import TelegramGroup
@@ -32,6 +32,23 @@ def convert_group_to_response(group: TelegramGroup) -> TelegramGroupResponse:
     if "_id" in group_dict and group_dict["_id"] is not None:
         group_dict["_id"] = str(group_dict["_id"])
     return TelegramGroupResponse(**group_dict)
+
+
+DEFAULT_GROUP_SETTING_KEYS = ("default_consumption_group_id", "default_verification_group_id")
+
+
+async def get_default_group_ids() -> Set[int]:
+    """Telegram group IDs currently assigned as default consumption or verification group."""
+    ids: Set[int] = set()
+    for key in DEFAULT_GROUP_SETTING_KEYS:
+        setting = await Setting.find_one({"key": key})
+        if not setting or not setting.value:
+            continue
+        try:
+            ids.add(int(setting.value))
+        except (TypeError, ValueError):
+            continue
+    return ids
 
 
 @router.get("/defaults")
@@ -103,6 +120,7 @@ async def verify_telegram_group(
 
 @router.get("", response_model=TelegramGroupListResponse)
 async def get_telegram_groups_list(
+    is_filter: bool = Query(True, alias="isFilter"),
     current_user: User = Depends(get_current_active_user)
 ):
     """
@@ -110,8 +128,16 @@ async def get_telegram_groups_list(
     
     All authenticated users can access this endpoint to see available groups
     when creating bookings.
+
+    By default (`isFilter=true`) groups already assigned as the default
+    consumption or verification group are left out, since those only receive
+    their own notifications. Pass `isFilter=false` for the complete list
+    (admin screens, name lookups).
     """
     groups = await get_all_telegram_groups()
+    if is_filter:
+        default_ids = await get_default_group_ids()
+        groups = [group for group in groups if group.group_id not in default_ids]
     return TelegramGroupListResponse(
         groups=[convert_group_to_response(group) for group in groups],
         total=len(groups)

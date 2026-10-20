@@ -174,6 +174,14 @@ Request:
 }
 ```
 
+Field yang tidak dikirim tidak diubah. Kirim `null` untuk mengosongkan grup default (disimpan sebagai nilai kosong; `GET` lalu mengembalikan `null`, dan booking baru tidak mengirim notifikasi ke grup tersebut):
+```json
+{
+  "default_consumption_group_id": null,
+  "default_verification_group_id": -1002222222222
+}
+```
+
 ---
 
 ## 🔧 Alur Notification

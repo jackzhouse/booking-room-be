@@ -2,34 +2,49 @@
 Scheduler service for automatic background tasks.
 Handles automatic completion and cleanup notifications for ended bookings.
 """
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import List
 
 from app.models.booking import Booking
-from app.services.telegram_service import notify_verification_group_cleanup
+from app.services.telegram_service import completion_targets, notify_booking_completed
 from app.core.config import settings
+
+
+# A "selesai" message that keeps failing (e.g. the bot was removed from the group) stops being retried after this.
+COMPLETION_RETRY_WINDOW = timedelta(hours=24)
 
 
 async def _complete_booking(booking: Booking, now: datetime) -> bool:
     """
-    Mark a booking as completed and send cleanup notification when needed.
+    Mark a booking as completed and tell its groups it has finished.
+
+    Only targets that have not been notified yet are sent, so a failed target is
+    retried on the next run without repeating the ones that already succeeded.
 
     Returns:
-        True if cleanup notification was sent successfully, otherwise False.
+        True if at least one group was notified, otherwise False.
     """
     booking.status = "completed"
     booking.completed_at = booking.completed_at or now
     booking.updated_at = now
     await booking.save()
 
-    if not booking.published or not booking.verification_group_id or booking.hrd_notified:
+    if not booking.published:
         return False
 
-    await notify_verification_group_cleanup(booking)
-    booking.hrd_notified = True
+    notified = list(booking.completion_notified_targets)
+    if booking.hrd_notified and "verification" not in notified:
+        # Completed before per-target tracking: the verification group already got its message.
+        notified.append("verification")
+
+    pending = [role for role in completion_targets(booking) if role not in notified]
+    delivered = await notify_booking_completed(booking, pending) if pending else []
+
+    booking.completion_notified_targets = notified + delivered
+    booking.hrd_notified = len(delivered) == len(pending)
     booking.updated_at = datetime.now(settings.timezone)
     await booking.save()
-    return True
+    return bool(delivered)
 
 
 async def check_and_notify_ended_bookings():
@@ -42,8 +57,8 @@ async def check_and_notify_ended_bookings():
     
     For each booking found, it:
     1. Marks booking status as completed
-    2. Sends cleanup notification to verification group for published bookings
-    3. Marks hrd_notified = True after cleanup notification is delivered
+    2. Tells the main, verification and consumption groups it finished (published bookings)
+    3. Marks hrd_notified = True once every group has been notified
     """
     print(f"[Scheduler] =======================================")
     print(f"[Scheduler] check_and_notify_ended_bookings() called")
@@ -64,7 +79,7 @@ async def check_and_notify_ended_bookings():
     pending_cleanup_query = {
         "status": "completed",
         "published": True,
-        "end_time": {"$lte": now},
+        "end_time": {"$lte": now, "$gte": now - COMPLETION_RETRY_WINDOW},
         "hrd_notified": False,
     }
     print(f"[Scheduler] Pending cleanup query: {pending_cleanup_query}")

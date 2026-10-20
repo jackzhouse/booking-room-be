@@ -26,6 +26,8 @@ class TelegramGroup(Document):
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_by: Optional[ObjectId] = None  # Admin who last updated
+    message_thread_id: Optional[int] = None  # Forum topic (e.g. "tkiRoom") that notifications are posted to
+    topic_name: Optional[str] = None
     
     class Settings:
         name = "telegram_groups"

@@ -339,6 +339,37 @@ const deleteRoom = async (roomId) => {
 
 ---
 
+## Room Photo
+
+Room responses include `photo_url`: a path relative to the API host such as
+`/api/v1/rooms/{room_id}/photo?v=1760600000`, or `null` when the room has no photo. The `v` value changes on every upload, so the URL can be cached indefinitely.
+
+Photos are stored in MongoDB (`room_photos` collection), not on disk, so they survive redeploys.
+
+### Get photo
+`GET /api/v1/rooms/{room_id}/photo`
+
+Public (no token), so it can be used directly as an `<img src>`. Returns the image bytes with the stored `Content-Type`. `404` when the room has no photo.
+
+### Upload or replace photo (Admin)
+`POST /api/v1/rooms/{room_id}/photo`
+
+`multipart/form-data` with one `file` field. JPEG, PNG or WebP, maximum 2 MB. The type is detected from the file contents, not from the filename or `Content-Type` header. Returns the updated room (`RoomResponse`).
+
+| Status | Reason |
+|--------|--------|
+| 400 | Invalid room ID |
+| 404 | Room does not exist |
+| 413 | File larger than 2 MB |
+| 415 | Not a JPEG, PNG or WebP image |
+
+### Remove photo (Admin)
+`DELETE /api/v1/rooms/{room_id}/photo`
+
+Returns the updated room with `photo_url: null`. Deleting a room also deletes its photo.
+
+---
+
 ## Error Codes
 
 | Status Code | Description |

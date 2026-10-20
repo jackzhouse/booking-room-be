@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import Dict, List, Optional
 from beanie import Document, Indexed
 from pydantic import BaseModel, ConfigDict, Field
 from bson import ObjectId
@@ -18,6 +18,13 @@ class UserSnapshot(BaseModel):
 class RoomSnapshot(BaseModel):
     """Snapshot of room data at booking time"""
     name: str
+
+
+class TelegramMessageRef(BaseModel):
+    """Where a booking notification was posted, so a later change can edit it in place"""
+    chat_id: int
+    message_id: int
+    message_thread_id: Optional[int] = None
 
 
 class Booking(Document):
@@ -71,6 +78,10 @@ class Booking(Document):
     consumption_group_id: Optional[int] = None  # Telegram group ID for consumption notifications
     verification_group_id: Optional[int] = None  # Telegram group ID for verification/cleanup notifications
     hrd_notified: bool = Field(default=False)  # Whether HRD has been notified for cleanup
+    # Published notification per target ("main", "verification", "consumption"); edited when the booking changes
+    telegram_messages: Dict[str, TelegramMessageRef] = Field(default_factory=dict)
+    # Targets that already received the "selesai" message; the scheduler retries the rest
+    completion_notified_targets: List[str] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     

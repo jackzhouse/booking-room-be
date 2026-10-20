@@ -1,12 +1,13 @@
 from typing import List, Optional
 from datetime import datetime, date
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile, status, Query
 from bson import ObjectId
 import logging
 
 from app.models.room import Room
 from app.models.booking import Booking
-from app.schemas.room import RoomResponse, RoomCreate, RoomUpdate
+from app.models.room_photo import RoomPhoto
+from app.schemas.room import RoomResponse, RoomCreate, RoomUpdate, room_to_response
 from app.api.deps import get_current_active_user, get_current_admin_user
 from app.models.user import User
 
@@ -36,15 +37,7 @@ async def get_rooms(
     result = []
     for room in rooms:
         try:
-            response = RoomResponse(
-                _id=str(room.id),
-                name=room.name,
-                capacity=room.capacity,
-                facilities=room.facilities,
-                location=room.location,
-                is_active=room.is_active,
-                created_at=room.created_at
-            )
+            response = room_to_response(room)
             result.append(response)
             logger.info(f"Successfully processed room: {room.name} (id: {room.id})")
         except Exception as e:
@@ -81,15 +74,7 @@ async def get_room(
         )
     
     logger.info(f"Successfully retrieved room: {room.name}")
-    return RoomResponse(
-        _id=str(room.id),
-        name=room.name,
-        capacity=room.capacity,
-        facilities=room.facilities,
-        location=room.location,
-        is_active=room.is_active,
-        created_at=room.created_at
-    )
+    return room_to_response(room)
 
 
 @router.get("/{room_id}/schedule", response_model=List[dict])
@@ -170,15 +155,7 @@ async def create_room(
     room = Room(**room_data.model_dump())
     await room.insert()
     
-    return RoomResponse(
-        _id=str(room.id),
-        name=room.name,
-        capacity=room.capacity,
-        facilities=room.facilities,
-        location=room.location,
-        is_active=room.is_active,
-        created_at=room.created_at
-    )
+    return room_to_response(room)
 
 
 @router.put("/{room_id}", response_model=RoomResponse)
@@ -204,15 +181,7 @@ async def update_room(
     
     await room.save()
     
-    return RoomResponse(
-        _id=str(room.id),
-        name=room.name,
-        capacity=room.capacity,
-        facilities=room.facilities,
-        location=room.location,
-        is_active=room.is_active,
-        created_at=room.created_at
-    )
+    return room_to_response(room)
 
 
 @router.patch("/{room_id}/toggle")
@@ -267,9 +236,118 @@ async def delete_room(
         await booking.save()
     
     # Delete room
+    await RoomPhoto.find(RoomPhoto.room_id == room.id).delete()
     await room.delete()
     
     return {
         "message": f"Room '{room.name}' deleted successfully",
         "cancelled_bookings": len(bookings)
     }
+
+
+MAX_PHOTO_BYTES = 2 * 1024 * 1024
+
+
+def _detect_image_type(data: bytes) -> Optional[str]:
+    """Identify the image from its leading bytes; the client's Content-Type is not trusted."""
+    if data.startswith(b"\xff\xd8\xff"):
+        return "image/jpeg"
+    if data.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "image/png"
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "image/webp"
+    return None
+
+
+async def _get_room_or_404(room_id: str) -> Room:
+    try:
+        room = await Room.get(room_id)
+    except Exception:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid room ID format"
+        )
+    if not room:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Room not found"
+        )
+    return room
+
+
+@router.get("/{room_id}/photo")
+async def get_room_photo(room_id: str):
+    """
+    Serve a room photo. Public so it can be used as an <img> source, which cannot send
+    the bearer token. The URL carries a version query, so browsers may cache it for long.
+    """
+    try:
+        photo = await RoomPhoto.find_one(RoomPhoto.room_id == ObjectId(room_id))
+    except Exception:
+        photo = None
+    if not photo:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Room photo not found"
+        )
+
+    return Response(
+        content=photo.data,
+        media_type=photo.content_type,
+        headers={"Cache-Control": "public, max-age=31536000, immutable"},
+    )
+
+
+@router.post("/{room_id}/photo", response_model=RoomResponse)
+async def upload_room_photo(
+    room_id: str,
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_admin_user)
+):
+    """
+    Upload or replace a room photo (Admin only). JPEG, PNG or WebP, up to 2 MB.
+    """
+    room = await _get_room_or_404(room_id)
+
+    data = await file.read(MAX_PHOTO_BYTES + 1)
+    if len(data) > MAX_PHOTO_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="Ukuran foto maksimal 2 MB"
+        )
+    content_type = _detect_image_type(data)
+    if content_type is None:
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail="Format foto harus JPEG, PNG, atau WebP"
+        )
+
+    now = datetime.utcnow()
+    photo = await RoomPhoto.find_one(RoomPhoto.room_id == room.id)
+    if photo:
+        photo.content_type = content_type
+        photo.data = data
+        photo.updated_at = now
+        await photo.save()
+    else:
+        await RoomPhoto(room_id=room.id, content_type=content_type, data=data, updated_at=now).insert()
+
+    room.photo_updated_at = now
+    await room.save()
+    return room_to_response(room)
+
+
+@router.delete("/{room_id}/photo", response_model=RoomResponse)
+async def delete_room_photo(
+    room_id: str,
+    current_user: User = Depends(get_current_admin_user)
+):
+    """
+    Remove a room photo (Admin only).
+    """
+    room = await _get_room_or_404(room_id)
+
+    await RoomPhoto.find(RoomPhoto.room_id == room.id).delete()
+    room.photo_updated_at = None
+    await room.save()
+    return room_to_response(room)

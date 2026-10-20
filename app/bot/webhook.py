@@ -2,7 +2,7 @@ import logging
 import asyncio
 from hmac import compare_digest
 from telegram import MenuButtonWebApp, Update, WebAppInfo
-from telegram.ext import Application, CommandHandler, ContextTypes
+from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 
 from app.core.config import settings
 from app.bot.handlers.start import start, help_command
@@ -11,6 +11,7 @@ from app.bot.handlers.schedule import schedule
 from app.bot.handlers.cancel import cancel
 from app.bot.handlers.authorize import authorize_command
 from app.bot.handlers.chat_member import get_chat_member_handler
+from app.bot.handlers.topic import handle_topic_event, settopic
 from app.bot.constants import TELEGRAM_ALLOWED_UPDATES
 
 # Configure logging
@@ -35,6 +36,11 @@ mybooking_handler = CommandHandler("mybooking", mybooking)
 schedule_handler = CommandHandler("schedule", schedule)
 cancel_handler = CommandHandler("cancel", cancel)
 authorize_handler = CommandHandler("authorize", authorize_command)
+settopic_handler = CommandHandler("settopic", settopic)
+topic_event_handler = MessageHandler(
+    filters.StatusUpdate.FORUM_TOPIC_CREATED | filters.StatusUpdate.FORUM_TOPIC_EDITED,
+    handle_topic_event,
+)
 
 application.add_handler(start_handler)
 application.add_handler(help_handler)
@@ -42,6 +48,8 @@ application.add_handler(mybooking_handler)
 application.add_handler(schedule_handler)
 application.add_handler(cancel_handler)
 application.add_handler(authorize_handler)
+application.add_handler(settopic_handler)
+application.add_handler(topic_event_handler)
 
 
 async def handle_command_error(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:

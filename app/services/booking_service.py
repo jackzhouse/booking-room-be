@@ -1,10 +1,10 @@
 from datetime import datetime
-from typing import Optional, List
+from typing import Dict, Optional, List
 import re
 from bson import ObjectId
 from beanie import PydanticObjectId
 
-from app.models.booking import Booking, UserSnapshot, RoomSnapshot
+from app.models.booking import Booking, UserSnapshot, RoomSnapshot, TelegramMessageRef
 from app.core.config import settings
 
 from app.models.booking import Booking, UserSnapshot, RoomSnapshot
@@ -378,18 +378,39 @@ async def publish_booking(
     
     # Send multi-group notifications
     
+    message_refs: Dict[str, object] = {}
+
     # 1. Always send to selected group (existing behavior)
-    await notify_new_booking(booking)
+    message_refs["main"] = await notify_new_booking(booking)
     
     # 2. Always send to verification group (if configured)
     if booking.verification_group_id:
-        await notify_verification_group_booking(booking)
+        message_refs["verification"] = await notify_verification_group_booking(booking)
     
     # 3. Send to consumption group if has consumption (if configured)
     if booking.has_consumption and booking.consumption_group_id:
-        await notify_consumption_group(booking)
+        message_refs["consumption"] = await notify_consumption_group(booking)
+
+    await _store_message_refs(booking, message_refs)
     
     return booking
+
+
+def _message_ref(booking: Booking, role: str) -> Optional[TelegramMessageRef]:
+    """The stored notification message for this target, if one was recorded."""
+    return (getattr(booking, "telegram_messages", None) or {}).get(role)
+
+
+async def _store_message_refs(booking: Booking, refs: Dict[str, object]) -> None:
+    """Remember where each notification was posted so a later change can edit it."""
+    new_refs = {
+        role: ref for role, ref in refs.items() if isinstance(ref, TelegramMessageRef)
+    }
+    if not new_refs:
+        return
+
+    booking.telegram_messages = {**booking.telegram_messages, **new_refs}
+    await booking.save()
 
 
 def _build_changed_fields_map(
@@ -681,23 +702,33 @@ async def update_booking(
             consumption_group_changed=consumption_group_changed,
         )
 
+        message_refs: Dict[str, object] = {}
+
         if changed_fields["main"] and booking.telegram_group_id:
-            await notify_booking_updated(
+            message_refs["main"] = await notify_booking_updated(
                 booking,
                 old_data.model_dump(),
                 changed_fields=changed_fields["main"],
+                message_ref=_message_ref(booking, "main"),
             )
 
         if changed_fields["verification"] and booking.verification_group_id:
-            await notify_booking_updated(
+            message_refs["verification"] = await notify_booking_updated(
                 booking,
                 old_data.model_dump(),
                 chat_id=booking.verification_group_id,
                 changed_fields=changed_fields["verification"],
+                message_ref=_message_ref(booking, "verification"),
             )
 
         if changed_fields["consumption"] and booking.has_consumption and booking.consumption_group_id:
-            await notify_consumption_group(booking, is_update=True)
+            message_refs["consumption"] = await notify_consumption_group(
+                booking,
+                is_update=True,
+                message_ref=_message_ref(booking, "consumption"),
+            )
+
+        await _store_message_refs(booking, message_refs)
 
         if telegram_group_changed and old_telegram_group_id:
             await notify_booking_target_removed(booking, old_telegram_group_id, "grup utama")

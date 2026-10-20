@@ -24,6 +24,7 @@ class Room(Document):
     location: Optional[str] = None
     is_active: bool = True
     created_at: datetime = Field(default_factory=datetime.utcnow)
+    photo_updated_at: Optional[datetime] = None  # Set while the room has a photo (see RoomPhoto)
     
     class Settings:
         name = "rooms"

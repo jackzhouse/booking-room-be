@@ -2,6 +2,8 @@ from datetime import datetime
 from typing import List, Optional
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.models.room import Room
+
 
 class RoomCreate(BaseModel):
     """Schema for creating a new room"""
@@ -31,4 +33,23 @@ class RoomResponse(BaseModel):
     location: Optional[str] = None
     is_active: bool
     created_at: datetime
-    
+    photo_url: Optional[str] = None
+
+
+def room_to_response(room: Room) -> RoomResponse:
+    """Build the API response for a room, including the cache-busted photo URL."""
+    photo_url = None
+    if room.photo_updated_at is not None:
+        version = int(room.photo_updated_at.timestamp())
+        photo_url = f"/api/v1/rooms/{room.id}/photo?v={version}"
+
+    return RoomResponse(
+        _id=str(room.id),
+        name=room.name,
+        capacity=room.capacity,
+        facilities=room.facilities,
+        location=room.location,
+        is_active=room.is_active,
+        created_at=room.created_at,
+        photo_url=photo_url,
+    )

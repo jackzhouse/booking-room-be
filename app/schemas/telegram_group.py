@@ -25,7 +25,10 @@ class TelegramGroupResponse(BaseModel):
     is_active: bool
     created_at: datetime
     updated_at: datetime
-    
+    message_thread_id: Optional[int] = None
+    topic_name: Optional[str] = None
+
+
 class TelegramGroupListResponse(BaseModel):
     """Response schema for list of Telegram groups"""
     groups: List[TelegramGroupResponse]

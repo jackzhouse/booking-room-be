@@ -36,6 +36,7 @@ from app.models.booking_history import BookingHistory
 from app.models.setting import Setting
 from app.models.auth_code import AuthCode
 from app.models.telegram_group import TelegramGroup
+from app.models.room_photo import RoomPhoto
 from app.models.sync_task import SyncTask
 from app.models.external_division import ExternalDivision
 
@@ -55,6 +56,7 @@ async def lifespan(app: FastAPI):
         Setting,
         AuthCode,
         TelegramGroup,
+        RoomPhoto,
         SyncTask,
         ExternalDivision
     ])

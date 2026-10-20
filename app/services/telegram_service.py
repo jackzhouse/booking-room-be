@@ -1,12 +1,13 @@
 import logging
 from datetime import datetime, timezone
 from html import escape
-from typing import Optional, List, Dict
+from typing import Dict, List, Optional, Union
 from telegram import Bot, Chat
-from telegram.error import TelegramError
+from telegram.error import BadRequest, TelegramError
 
 from app.core.config import settings
-from app.models.booking import Booking
+from app.core.timezone import to_local
+from app.models.booking import Booking, TelegramMessageRef
 from app.models.telegram_group import TelegramGroup
 
 
@@ -73,9 +74,7 @@ def _format_notification_time_range(start: datetime, end: datetime) -> str:
 
 
 def _to_notification_timezone(dt: datetime) -> datetime:
-    if dt.tzinfo is not None:
-        return dt.astimezone(settings.timezone)
-    return dt.replace(tzinfo=timezone.utc).astimezone(settings.timezone)
+    return to_local(dt)
 
 
 def _format_booking_intro(booking: Booking, action: str) -> str:
@@ -169,28 +168,132 @@ def _format_consumption_note(booking: Booking) -> str:
     return "\n".join(f"• {item}" for item in items if item)
 
 
-async def send_telegram_message(chat_id: int, message: str, parse_mode: str = "HTML") -> bool:
+# chat_id -> forum topic thread id (None = post in the main chat). Cleared when a group is updated.
+_topic_thread_cache: Dict[int, Optional[int]] = {}
+
+
+def clear_topic_cache(chat_id: Optional[int] = None) -> None:
+    if chat_id is None:
+        _topic_thread_cache.clear()
+    else:
+        _topic_thread_cache.pop(chat_id, None)
+
+
+async def get_topic_thread_id(chat_id: int) -> Optional[int]:
+    """Return the forum topic id stored for a group, or None when it has no topic."""
+    if chat_id in _topic_thread_cache:
+        return _topic_thread_cache[chat_id]
+
+    try:
+        group = await TelegramGroup.find_one(TelegramGroup.group_id == chat_id)
+    except Exception as e:  # a lookup failure must not block the notification
+        logger.warning("Could not look up topic for Telegram group %s: %s", chat_id, e)
+        return None
+
+    thread_id = group.message_thread_id if group else None
+    _topic_thread_cache[chat_id] = thread_id
+    return thread_id
+
+
+async def set_group_topic(
+    chat_id: int,
+    message_thread_id: Optional[int],
+    topic_name: Optional[str] = None,
+) -> Optional[TelegramGroup]:
+    """Store (or clear, with None) the forum topic a group's notifications go to."""
+    group = await TelegramGroup.find_one(TelegramGroup.group_id == chat_id)
+    if not group:
+        return None
+
+    group.message_thread_id = message_thread_id
+    group.topic_name = topic_name if message_thread_id is not None else None
+    group.updated_at = datetime.now(timezone.utc)
+    await group.save()
+    clear_topic_cache(chat_id)
+    return group
+
+
+def _is_missing_thread_error(error: TelegramError) -> bool:
+    return "message thread not found" in str(error).lower()
+
+
+async def send_telegram_message(
+    chat_id: int, message: str, parse_mode: str = "HTML"
+) -> Union[TelegramMessageRef, bool]:
     """
-    Send a message to a Telegram chat.
-    
+    Send a message to a Telegram chat, inside the group's forum topic when one is set.
+
     Args:
         chat_id: Telegram chat ID (can be negative for groups)
         message: Message content
         parse_mode: Telegram parse mode; HTML by default for formatted notifications.
-    
+
     Returns:
-        True if successful, False otherwise
+        A TelegramMessageRef (truthy) when sent, False otherwise.
     """
+    thread_id = await get_topic_thread_id(chat_id)
     try:
-        await bot.send_message(
-            chat_id=chat_id,
-            text=message,
-            parse_mode=parse_mode
-        )
-        return True
+        try:
+            sent = await bot.send_message(
+                chat_id=chat_id,
+                text=message,
+                parse_mode=parse_mode,
+                message_thread_id=thread_id,
+            )
+        except BadRequest as e:
+            if thread_id is None or not _is_missing_thread_error(e):
+                raise
+            # The topic was deleted: forget it and post in the main chat instead.
+            logger.warning("Topic %s no longer exists in %s, clearing it: %s", thread_id, chat_id, e)
+            await set_group_topic(chat_id, None)
+            thread_id = None
+            sent = await bot.send_message(chat_id=chat_id, text=message, parse_mode=parse_mode)
     except TelegramError as e:
         logger.warning("Error sending Telegram message to %s: %s", chat_id, e)
         return False
+
+    return TelegramMessageRef(
+        chat_id=chat_id,
+        message_id=sent.message_id,
+        message_thread_id=thread_id,
+    )
+
+
+async def edit_telegram_message(
+    ref: TelegramMessageRef, message: str, parse_mode: str = "HTML"
+) -> bool:
+    """Edit a message the bot sent earlier. An unchanged text counts as success."""
+    try:
+        await bot.edit_message_text(
+            chat_id=ref.chat_id,
+            message_id=ref.message_id,
+            text=message,
+            parse_mode=parse_mode,
+        )
+        return True
+    except BadRequest as e:
+        if "message is not modified" in str(e).lower():
+            return True
+        logger.warning("Could not edit Telegram message %s in %s: %s", ref.message_id, ref.chat_id, e)
+        return False
+    except TelegramError as e:
+        logger.warning("Error editing Telegram message %s in %s: %s", ref.message_id, ref.chat_id, e)
+        return False
+
+
+async def send_or_edit_telegram_message(
+    chat_id: int,
+    message: str,
+    message_ref: Optional[TelegramMessageRef] = None,
+) -> Union[TelegramMessageRef, bool]:
+    """
+    Edit the earlier message for this chat when there is one, otherwise (or when the
+    edit fails, e.g. the message was deleted) send a new message.
+    """
+    if isinstance(message_ref, TelegramMessageRef) and message_ref.chat_id == chat_id:
+        if await edit_telegram_message(message_ref, message):
+            return message_ref
+    return await send_telegram_message(chat_id, message)
 
 
 async def get_telegram_group(group_id: int) -> Optional[TelegramGroup]:
@@ -408,7 +511,7 @@ async def notify_new_booking(booking: Booking):
     
     message = _render_new_booking_notification(booking)
     
-    await send_telegram_message(group_id, message)
+    return await send_telegram_message(group_id, message)
 
 
 def _format_changed_fields(changed_fields: Optional[list[str]]) -> str:
@@ -422,10 +525,12 @@ async def notify_booking_updated(
     old_data: dict,
     chat_id: Optional[int] = None,
     changed_fields: Optional[list[str]] = None,
+    message_ref: Optional[TelegramMessageRef] = None,
 ):
     """
-    Send notification for booking update to Telegram group.
-    Uses telegram_group_id from booking object.
+    Notify a Telegram group about a booking update.
+    Uses telegram_group_id from booking object. Edits the earlier booking
+    message when message_ref is given, otherwise sends a new one.
     """
     group_id = chat_id if chat_id is not None else booking.telegram_group_id
     message = _render_booking_notification(
@@ -436,7 +541,7 @@ async def notify_booking_updated(
         leading_blocks=[("Perubahan", _format_changed_fields(changed_fields))],
     )
     
-    await send_telegram_message(group_id, message)
+    return await send_or_edit_telegram_message(group_id, message, message_ref)
 
 
 async def notify_booking_target_removed(booking: Booking, chat_id: int, target_label: str):
@@ -498,13 +603,18 @@ async def test_notification(group_id: int) -> bool:
     return await send_telegram_message(group_id, message)
 
 
-async def notify_consumption_group(booking: Booking, is_update: bool = False):
+async def notify_consumption_group(
+    booking: Booking,
+    is_update: bool = False,
+    message_ref: Optional[TelegramMessageRef] = None,
+):
     """
     Send notification to consumption group.
     
     Args:
         booking: Booking object with consumption details
         is_update: Whether notification represents a published booking update
+        message_ref: Earlier consumption message to edit in place on an update
     """
     if not booking.consumption_group_id:
         return
@@ -533,7 +643,11 @@ async def notify_consumption_group(booking: Booking, is_update: bool = False):
         ],
     )
     
-    await send_telegram_message(booking.consumption_group_id, message)
+    if is_update:
+        return await send_or_edit_telegram_message(
+            booking.consumption_group_id, message, message_ref
+        )
+    return await send_telegram_message(booking.consumption_group_id, message)
 
 
 async def notify_consumption_group_cancelled(booking: Booking, chat_id: Optional[int] = None):
@@ -566,7 +680,7 @@ async def notify_verification_group_booking(booking: Booking):
     
     message = _render_new_booking_notification(booking)
     
-    await send_telegram_message(booking.verification_group_id, message)
+    return await send_telegram_message(booking.verification_group_id, message)
 
 
 async def notify_verification_group_cancelled(booking: Booking):
@@ -579,6 +693,57 @@ async def notify_verification_group_cancelled(booking: Booking):
     await notify_booking_cancelled(booking, chat_id=booking.verification_group_id)
 
 
+def completion_targets(booking: Booking) -> Dict[str, int]:
+    """Groups that should hear a booking is finished, keyed by role."""
+    targets: Dict[str, int] = {}
+    if booking.telegram_group_id:
+        targets["main"] = booking.telegram_group_id
+    if booking.verification_group_id:
+        targets["verification"] = booking.verification_group_id
+    if booking.has_consumption and booking.consumption_group_id:
+        targets["consumption"] = booking.consumption_group_id
+    return targets
+
+
+def _render_completion_notification(booking: Booking, instruction: str) -> str:
+    return _render_booking_notification(
+        "Penggunaan Ruang Meeting Selesai",
+        booking,
+        _format_booking_intro(booking, "telah selesai menggunakan ruangan:"),
+        instruction,
+        date_value=_format_notification_date(booking.end_time),
+        time_value=f"{_to_notification_timezone(booking.end_time).strftime('%H.%M')} WIB",
+    )
+
+
+_COMPLETION_INSTRUCTIONS = {
+    "main": "Terima kasih, penggunaan ruangan sudah selesai.",
+    "verification": "Mohon rapikan dan bersihkan ruangan setelah penggunaan.",
+    "consumption": "Kebutuhan konsumsi untuk booking ini sudah selesai.",
+}
+
+
+async def notify_booking_completed(booking: Booking, roles: List[str]) -> List[str]:
+    """
+    Tell the groups for the given roles that a booking has finished.
+
+    Always a new message (never an edit), so the group is notified.
+
+    Returns:
+        The roles whose message was delivered; the caller retries the rest.
+    """
+    targets = completion_targets(booking)
+    delivered: List[str] = []
+    for role in roles:
+        chat_id = targets.get(role)
+        if chat_id is None:
+            continue
+        message = _render_completion_notification(booking, _COMPLETION_INSTRUCTIONS[role])
+        if await send_telegram_message(chat_id, message):
+            delivered.append(role)
+    return delivered
+
+
 async def notify_verification_group_cleanup(booking: Booking):
     """
     Send cleanup notification to verification group after meeting ends.
@@ -589,13 +754,6 @@ async def notify_verification_group_cleanup(booking: Booking):
     if not booking.verification_group_id:
         return
     
-    message = _render_booking_notification(
-        "Penggunaan Ruang Meeting Selesai",
-        booking,
-        _format_booking_intro(booking, "telah selesai menggunakan ruangan:"),
-        "Mohon rapikan dan bersihkan ruangan setelah penggunaan.",
-        date_value=_format_notification_date(booking.end_time),
-        time_value=f"{_to_notification_timezone(booking.end_time).strftime('%H.%M')} WIB",
-    )
+    message = _render_completion_notification(booking, _COMPLETION_INSTRUCTIONS["verification"])
     
-    await send_telegram_message(booking.verification_group_id, message)
+    return await send_telegram_message(booking.verification_group_id, message)

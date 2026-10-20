@@ -3,7 +3,7 @@ from typing import Optional, Tuple
 from bson import ObjectId
 from app.models.booking import Booking
 from app.models.setting import Setting
-from app.core.config import settings
+from app.core.timezone import to_local
 
 
 async def get_operating_hours() -> Tuple[time, time]:
@@ -57,8 +57,8 @@ async def validate_operating_hours(
         start_hour, end_hour = await get_operating_hours()
         
         # Extract time component from datetime (convert to UTC+7 for display)
-        booking_start = start_time.astimezone(settings.timezone).time()
-        booking_end = end_time.astimezone(settings.timezone).time()
+        booking_start = to_local(start_time).time()
+        booking_end = to_local(end_time).time()
         
         # Check if within operating hours
         if booking_start < start_hour or booking_end > end_hour:
@@ -154,8 +154,8 @@ async def format_conflict_message(conflicting_booking: Booking) -> str:
     room_name = conflicting_booking.room_snapshot.name
     
     # Convert to UTC+7 for display in error message
-    start_time_jkt = conflicting_booking.start_time.astimezone(settings.timezone)
-    end_time_jkt = conflicting_booking.end_time.astimezone(settings.timezone)
+    start_time_jkt = to_local(conflicting_booking.start_time)
+    end_time_jkt = to_local(conflicting_booking.end_time)
     
     start_str = start_time_jkt.strftime("%H:%M")
     end_str = end_time_jkt.strftime("%H:%M")

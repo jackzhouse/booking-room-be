@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from types import SimpleNamespace
 from bson import ObjectId
 
+from app.models.booking import TelegramMessageRef
 from app.services import booking_service
 from app.services import scheduler_service
 from app.services import telegram_service
@@ -49,6 +50,8 @@ class FakeBooking:
         self.consumption_group_id = consumption_group_id
         self.verification_group_id = verification_group_id
         self.hrd_notified = False
+        self.telegram_messages = {}
+        self.completion_notified_targets = []
         self.updated_at = datetime(2026, 7, 8, 6, 50, tzinfo=timezone.utc)
 
     async def save(self):
@@ -477,7 +480,7 @@ def test_all_notification_types_use_html_template(monkeypatch):
     assert "<b>Fasilitas:</b>" not in sent_messages[7][1]
     assert "Mohon hentikan persiapan konsumsi untuk booking ini." in sent_messages[7][1]
     assert "<b>Waktu:</b> 14.19 WIB" in sent_messages[10][1]
-    assert "Rapikan dan bersihkan ruangan setelah penggunaan." in sent_messages[10][1]
+    assert "Mohon rapikan dan bersihkan ruangan setelah penggunaan." in sent_messages[10][1]
 
 
 def test_notification_template_omits_empty_optional_booking_fields():
@@ -661,44 +664,156 @@ def test_completed_booking_blocks_update_cancel_and_publish(monkeypatch):
             assert str(exc) == "Booking sudah selesai"
 
 
-def test_scheduler_marks_ended_booking_completed(monkeypatch):
-    now = datetime(2026, 7, 8, 10, 0, tzinfo=timezone.utc)
-    booking = FakeBooking(published=True)
-    booking.end_time = datetime(2026, 7, 8, 7, 19, tzinfo=timezone.utc)
-    booking.hrd_notified = False
-    notify_calls: list[str] = []
+class _FakeQuery:
+    def __init__(self, result):
+        self.result = result
 
-    class FakeQuery:
-        def __init__(self, result):
-            self.result = result
+    async def to_list(self):
+        return self.result
 
-        def sort(self, *args, **kwargs):
-            return self
 
-        def limit(self, *args, **kwargs):
-            return self
-
-        async def to_list(self):
-            return self.result
-
-        async def count(self):
-            return len(self.result)
-
+def _run_scheduler(monkeypatch, booking, fake_notify_booking_completed):
     def fake_find(query):
-        if query.get("status") == "active":
-            return FakeQuery([booking])
-        return FakeQuery([])
-
-    async def fake_notify_verification_group_cleanup(target):
-        notify_calls.append(target.booking_number)
+        return _FakeQuery([booking] if query.get("status") == "active" else [])
 
     monkeypatch.setattr(scheduler_service.Booking, "find", fake_find)
     monkeypatch.setattr(scheduler_service, "datetime", FixedDateTime)
-    monkeypatch.setattr(scheduler_service, "notify_verification_group_cleanup", fake_notify_verification_group_cleanup)
-
+    monkeypatch.setattr(scheduler_service, "notify_booking_completed", fake_notify_booking_completed)
     asyncio.run(scheduler_service.check_and_notify_ended_bookings())
+
+
+def _ended_booking() -> FakeBooking:
+    booking = FakeBooking(published=True)
+    booking.end_time = datetime(2026, 7, 8, 7, 19, tzinfo=timezone.utc)
+    return booking
+
+
+def test_scheduler_marks_ended_booking_completed_and_notifies_every_group(monkeypatch):
+    booking = _ended_booking()
+    notify_calls: list[list[str]] = []
+
+    async def fake_notify_booking_completed(target, roles):
+        notify_calls.append(list(roles))
+        return list(roles)
+
+    _run_scheduler(monkeypatch, booking, fake_notify_booking_completed)
 
     assert booking.status == "completed"
     assert booking.completed_at is not None
+    assert notify_calls == [["main", "verification", "consumption"]]
+    assert booking.completion_notified_targets == ["main", "verification", "consumption"]
     assert booking.hrd_notified is True
-    assert notify_calls == ["BK-00061"]
+
+
+def test_scheduler_retries_only_the_groups_that_failed(monkeypatch):
+    booking = _ended_booking()
+    notify_calls: list[list[str]] = []
+
+    async def failing_consumption(target, roles):
+        notify_calls.append(list(roles))
+        return [role for role in roles if role != "consumption"]
+
+    _run_scheduler(monkeypatch, booking, failing_consumption)
+
+    assert booking.completion_notified_targets == ["main", "verification"]
+    assert booking.hrd_notified is False
+
+    async def working(target, roles):
+        notify_calls.append(list(roles))
+        return list(roles)
+
+    _run_scheduler(monkeypatch, booking, working)
+
+    assert notify_calls == [["main", "verification", "consumption"], ["consumption"]]
+    assert booking.completion_notified_targets == ["main", "verification", "consumption"]
+    assert booking.hrd_notified is True
+
+
+def test_scheduler_skips_consumption_group_without_consumption(monkeypatch):
+    booking = _ended_booking()
+    booking.has_consumption = False
+    notify_calls: list[list[str]] = []
+
+    async def fake_notify_booking_completed(target, roles):
+        notify_calls.append(list(roles))
+        return list(roles)
+
+    _run_scheduler(monkeypatch, booking, fake_notify_booking_completed)
+
+    assert notify_calls == [["main", "verification"]]
+    assert booking.hrd_notified is True
+
+
+def test_scheduler_does_not_message_groups_for_draft_booking(monkeypatch):
+    booking = _ended_booking()
+    booking.published = False
+    notify_calls: list[list[str]] = []
+
+    async def fake_notify_booking_completed(target, roles):
+        notify_calls.append(list(roles))
+        return list(roles)
+
+    _run_scheduler(monkeypatch, booking, fake_notify_booking_completed)
+
+    assert booking.status == "completed"
+    assert notify_calls == []
+
+
+def test_notify_booking_completed_sends_a_new_message_per_group(monkeypatch):
+    booking = FakeBooking(published=True)
+    sent: list[tuple[int, str]] = []
+
+    async def fake_send(chat_id, message, parse_mode="HTML"):
+        sent.append((chat_id, message))
+        return chat_id != booking.consumption_group_id
+
+    monkeypatch.setattr(telegram_service, "send_telegram_message", fake_send)
+
+    delivered = asyncio.run(
+        telegram_service.notify_booking_completed(booking, ["main", "verification", "consumption"])
+    )
+
+    assert delivered == ["main", "verification"]
+    assert [chat_id for chat_id, _ in sent] == [
+        booking.telegram_group_id,
+        booking.verification_group_id,
+        booking.consumption_group_id,
+    ]
+    assert all("<b>Penggunaan Ruang Meeting Selesai</b>" in message for _, message in sent)
+    assert "Mohon rapikan dan bersihkan ruangan" in sent[1][1]
+
+
+def test_update_booking_edits_stored_messages_and_records_new_ones(monkeypatch):
+    booking = FakeBooking(published=True)
+    main_ref = TelegramMessageRef(chat_id=booking.telegram_group_id, message_id=11)
+    booking.telegram_messages = {"main": main_ref}
+    _install_common_mocks(monkeypatch, booking, [])
+
+    received: dict[str, object] = {}
+    verification_ref = TelegramMessageRef(chat_id=booking.verification_group_id, message_id=22)
+
+    async def fake_notify_booking_updated(*args, **kwargs):
+        target = "verification" if kwargs.get("chat_id") else "main"
+        received[target] = kwargs.get("message_ref")
+        return verification_ref if target == "verification" else kwargs.get("message_ref")
+
+    async def fake_notify_consumption_group(*args, **kwargs):
+        received["consumption"] = kwargs.get("message_ref")
+
+    monkeypatch.setattr(booking_service, "notify_booking_updated", fake_notify_booking_updated)
+    monkeypatch.setattr(booking_service, "notify_consumption_group", fake_notify_consumption_group)
+
+    asyncio.run(
+        booking_service.update_booking(
+            booking_id=str(booking.id),
+            user_id=booking.user_id,
+            title="Updated Title",
+            has_consumption=True,
+            consumption_note="Updated note",
+        )
+    )
+
+    assert received["main"] is main_ref
+    assert received["verification"] is None
+    assert received["consumption"] is None
+    assert booking.telegram_messages == {"main": main_ref, "verification": verification_ref}
