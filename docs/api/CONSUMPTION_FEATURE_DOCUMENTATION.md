@@ -140,6 +140,10 @@ Behavior tambahan:
 - Booking baru tetap disimpan sebagai draft (`published=false`)
 - Booking baru akan ditolak jika `start_time` sudah lewat saat request dibuat
 - `consumption_facilities` harus cocok dengan fasilitas pada ruangan yang dipilih
+- `has_consumption` dan `consumption_facilities` adalah dua permintaan terpisah. `has_consumption` hanya mengikuti nilai yang dikirim (kotak "Tambah konsumsi"); memilih fasilitas tidak menyalakannya. Pada update, `has_consumption` yang tidak dikirim mempertahankan nilai sekarang.
+- Grup konsumsi menerima booking bila `has_consumption` aktif, ada `consumption_facilities`, atau keduanya. Pesan hanya memuat bagian yang aktif: fasilitas saja, catatan konsumsi saja (catatan diabaikan bila `has_consumption` false), atau keduanya. Grup konsumsi default ikut terisi untuk ketiga kasus itu.
+- Mengosongkan konsumsi dan fasilitas sekaligus pada booking terpublish mengirim pesan pembatalan ke grup konsumsi sebelumnya.
+- Booking lama yang `has_consumption`-nya dulu otomatis `true` karena memilih fasilitas tetap `true` sampai diedit; kotaknya bisa dihilangkan centangnya lewat Edit.
 - Tidak ada auto-publish untuk draft yang sudah lewat start time
 
 #### POST `/api/v1/bookings/{id}/publish` - Publish Booking

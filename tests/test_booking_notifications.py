@@ -282,7 +282,7 @@ def test_update_booking_saves_selected_consumption_facilities(monkeypatch):
         )
     )
 
-    assert result.has_consumption is True
+    assert result.has_consumption is False  # facilities are their own request, not a ticked consumption box
     assert result.consumption_facilities == ["AC", "Proyektor"]
     assert result.consumption_group_id == -5181257488
     assert calls == ["consumption"]
@@ -729,9 +729,10 @@ def test_scheduler_retries_only_the_groups_that_failed(monkeypatch):
     assert booking.hrd_notified is True
 
 
-def test_scheduler_skips_consumption_group_without_consumption(monkeypatch):
+def test_scheduler_skips_consumption_group_without_consumption_or_facilities(monkeypatch):
     booking = _ended_booking()
     booking.has_consumption = False
+    booking.consumption_facilities = []
     notify_calls: list[list[str]] = []
 
     async def fake_notify_booking_completed(target, roles):

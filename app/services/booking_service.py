@@ -24,6 +24,7 @@ from app.services.conflict_service import (
 from app.services.telegram_service import (
     get_telegram_group,
     completion_targets,
+    requests_consumption_group,
     notify_new_booking,
     notify_series,
     notify_booking_updated,
@@ -82,19 +83,9 @@ def _validate_room_facilities(room: Room, selected_facilities: List[str]):
         )
 
 
-def _has_consumption_request(
-    has_consumption: Optional[bool],
-    consumption_note: Optional[str],
-    consumption_facilities: List[str],
-) -> bool:
-    if has_consumption is False and not consumption_facilities:
-        return False
-
-    return bool(
-        has_consumption
-        or (consumption_note and consumption_note.strip())
-        or consumption_facilities
-    )
+def _requests_consumption_group(has_consumption: bool, consumption_facilities: List[str]) -> bool:
+    """Consumption and room facilities are separate requests; either one reaches the consumption group."""
+    return bool(has_consumption or consumption_facilities)
 
 
 def _to_local_timezone(dt: datetime) -> datetime:
@@ -240,11 +231,7 @@ async def create_booking(
     description = format_text_with_links(description)
     selected_consumption_facilities = _normalize_consumption_facilities(consumption_facilities)
     _validate_room_facilities(room, selected_consumption_facilities)
-    final_has_consumption = _has_consumption_request(
-        has_consumption,
-        consumption_note,
-        selected_consumption_facilities,
-    )
+    final_has_consumption = bool(has_consumption)
     
     # Check for conflicts
     has_conflict, conflicting_booking = await check_booking_conflict(
@@ -262,8 +249,8 @@ async def create_booking(
     final_consumption_group_id = consumption_group_id
     final_verification_group_id = verification_group_id
     
-    # Get default consumption group from settings if not provided and has consumption
-    if final_has_consumption and not final_consumption_group_id:
+    # Get default consumption group from settings if not provided and the booking asks for consumption or facilities
+    if _requests_consumption_group(final_has_consumption, selected_consumption_facilities) and not final_consumption_group_id:
         setting = await Setting.find_one(Setting.key == "default_consumption_group_id")
         if setting:
             try:
@@ -707,8 +694,8 @@ async def publish_booking(
     if booking.verification_group_id:
         message_refs["verification"] = await notify_verification_group_booking(booking)
     
-    # 3. Send to consumption group if has consumption (if configured)
-    if booking.has_consumption and booking.consumption_group_id:
+    # 3. Send to consumption group if it asks for consumption or room facilities (if configured)
+    if requests_consumption_group(booking) and booking.consumption_group_id:
         message_refs["consumption"] = await notify_consumption_group(booking)
 
     await _store_message_refs(booking, message_refs)
@@ -911,16 +898,14 @@ async def update_booking(
         else booking.consumption_facilities
     )
     _validate_room_facilities(room, selected_consumption_facilities)
-    final_has_consumption = _has_consumption_request(
-        has_consumption,
-        consumption_note if consumption_note is not None else booking.consumption_note,
-        selected_consumption_facilities,
-    )
+    final_has_consumption = booking.has_consumption if has_consumption is None else has_consumption
     update_data["has_consumption"] = final_has_consumption
     update_data["consumption_facilities"] = selected_consumption_facilities
 
     final_consumption_group_id = consumption_group_id
-    if final_consumption_group_id is None and final_has_consumption:
+    if final_consumption_group_id is None and _requests_consumption_group(
+        final_has_consumption, selected_consumption_facilities
+    ):
         if booking.consumption_group_id is not None:
             final_consumption_group_id = booking.consumption_group_id
         else:
@@ -1027,11 +1012,13 @@ async def update_booking(
         has_consumption_changed = has_consumption is not None and booking.has_consumption != old_has_consumption
         consumption_note_changed = consumption_note is not None and booking.consumption_note != old_consumption_note
         consumption_facilities_changed = booking.consumption_facilities != old_consumption_facilities
+        consumption_active = requests_consumption_group(booking)
+        old_consumption_active = _requests_consumption_group(old_has_consumption, old_consumption_facilities)
         consumption_group_changed = (
-            booking.has_consumption
+            consumption_active
             and booking.consumption_group_id != old_consumption_group_id
         )
-        consumption_disabled = old_has_consumption and booking.has_consumption is False
+        consumption_disabled = old_consumption_active and not consumption_active
         changed_fields = _build_changed_fields_map(
             room_changed=room_changed,
             title_changed=title_changed,
@@ -1065,7 +1052,7 @@ async def update_booking(
                 message_ref=_message_ref(booking, "verification"),
             )
 
-        if changed_fields["consumption"] and booking.has_consumption and booking.consumption_group_id:
+        if changed_fields["consumption"] and consumption_active and booking.consumption_group_id:
             message_refs["consumption"] = await notify_consumption_group(
                 booking,
                 is_update=True,
@@ -1080,7 +1067,7 @@ async def update_booking(
         if verification_group_changed and old_verification_group_id:
             await notify_booking_target_removed(booking, old_verification_group_id, "grup verifikasi")
 
-        if old_has_consumption and old_consumption_group_id and (
+        if old_consumption_active and old_consumption_group_id and (
             consumption_disabled or consumption_group_changed
         ):
             await notify_consumption_group_cancelled(booking, chat_id=old_consumption_group_id)
@@ -1147,7 +1134,7 @@ async def cancel_booking(
         if booking.verification_group_id:
             await notify_verification_group_cancelled(booking)
 
-        if booking.has_consumption and booking.consumption_group_id:
+        if requests_consumption_group(booking) and booking.consumption_group_id:
             await notify_consumption_group_cancelled(booking)
 
         if getattr(booking, "series_id", None):

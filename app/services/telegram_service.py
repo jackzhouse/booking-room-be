@@ -158,10 +158,15 @@ def _format_consumption_facilities(booking: Booking) -> str:
     return "\n".join(f"• {facility}" for facility in facilities)
 
 
+def requests_consumption_group(booking: Booking) -> bool:
+    """The consumption group hears about a booking that asks for consumption, room facilities, or both."""
+    return bool(booking.has_consumption or getattr(booking, "consumption_facilities", None))
+
+
 def _format_consumption_note(booking: Booking) -> str:
     """Render each non-empty consumption line as one consistent list item."""
     note = getattr(booking, "consumption_note", None)
-    if not note or not str(note).strip():
+    if not booking.has_consumption or not note or not str(note).strip():
         return ""
 
     items = [line.strip().lstrip("•- ").strip() for line in str(note).splitlines()]
@@ -838,7 +843,7 @@ def completion_targets(booking: Booking) -> Dict[str, int]:
         targets["main"] = booking.telegram_group_id
     if booking.verification_group_id:
         targets["verification"] = booking.verification_group_id
-    if booking.has_consumption and booking.consumption_group_id:
+    if requests_consumption_group(booking) and booking.consumption_group_id:
         targets["consumption"] = booking.consumption_group_id
     return targets
 
