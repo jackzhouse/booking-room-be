@@ -82,6 +82,8 @@ class Booking(Document):
     telegram_messages: Dict[str, TelegramMessageRef] = Field(default_factory=dict)
     # Targets that already received the "selesai" message; the scheduler retries the rest
     completion_notified_targets: List[str] = Field(default_factory=list)
+    # Bookings created together for consecutive days share one series_id (one document per day)
+    series_id: Optional[str] = None
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     
@@ -91,6 +93,7 @@ class Booking(Document):
             [("room_id", 1), ("start_time", 1), ("end_time", 1)],  # Compound index for conflict check
             "user_id",
             "status",
-            "booking_number"
+            "booking_number",
+            "series_id"
         ]
     

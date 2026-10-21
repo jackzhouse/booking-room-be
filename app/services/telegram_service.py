@@ -706,6 +706,131 @@ async def notify_verification_group_cancelled(booking: Booking):
     await notify_booking_cancelled(booking, chat_id=booking.verification_group_id)
 
 
+# (title, intro action, instruction) per message kind; consumption has its own wording.
+_SERIES_COPY = {
+    ("booking", "new"): (
+        "Informasi Penggunaan Ruang Meeting",
+        "telah menjadwalkan penggunaan ruangan untuk beberapa hari:",
+        "Mohon koordinasi dengan PIC bila diperlukan.",
+    ),
+    ("booking", "updated"): (
+        "Perubahan Penggunaan Ruang Meeting",
+        "telah memperbarui jadwal penggunaan ruangan:",
+        "Mohon gunakan jadwal terbaru ini sebagai acuan.",
+    ),
+    ("booking", "cancelled"): (
+        "Pembatalan Penggunaan Ruang Meeting",
+        "telah membatalkan penggunaan ruangan berikut:",
+        "Ruangan tersedia kembali pada jadwal tersebut.",
+    ),
+    ("consumption", "new"): (
+        "Permintaan Konsumsi Ruang Meeting",
+        "telah mengajukan kebutuhan konsumsi untuk penggunaan ruangan beberapa hari:",
+        "Mohon siapkan konsumsi sesuai permintaan.",
+    ),
+    ("consumption", "updated"): (
+        "Perubahan Permintaan Konsumsi",
+        "telah memperbarui kebutuhan konsumsi:",
+        "Mohon gunakan detail konsumsi terbaru ini sebagai acuan.",
+    ),
+    ("consumption", "cancelled"): (
+        "Pembatalan Permintaan Konsumsi",
+        "telah membatalkan permintaan konsumsi untuk hari berikut:",
+        "Mohon hentikan persiapan konsumsi untuk hari tersebut.",
+    ),
+}
+
+
+def _format_series_schedule(
+    bookings: List[Booking], changed_ids: frozenset, cancelled_only: bool
+) -> str:
+    """One line per day. A cancelled day is struck through unless the message only lists cancelled days."""
+    lines = []
+    for booking in bookings:
+        line = (
+            f"{_format_notification_date(booking.start_time)}, "
+            f"{_format_notification_time_range(booking.start_time, booking.end_time)}"
+        )
+        if booking.status == "cancelled" and not cancelled_only:
+            lines.append(f"• <s>{_display_value(line)}</s> (dibatalkan)")
+        elif booking.id in changed_ids:
+            lines.append(f"• {_display_value(line)} (diubah)")
+        else:
+            lines.append(f"• {_display_value(line)}")
+    return "\n".join(lines)
+
+
+def _render_series_notification(
+    bookings: List[Booking],
+    role: str,
+    kind: str,
+    changed_ids: frozenset = frozenset(),
+    changed_fields: Optional[list[str]] = None,
+) -> str:
+    """Render one message that lists every day of a booking series."""
+    copy_key = ("consumption" if role == "consumption" else "booking", kind)
+    title, action, instruction = _SERIES_COPY[copy_key]
+    reference = next((b for b in bookings if b.status == "active"), bookings[0])
+
+    sections = [
+        f"<b>{_display_value(title)}</b>",
+        _display_value(_format_booking_intro(reference, action)),
+    ]
+    changes = _render_optional_blocks([("Perubahan", _format_changed_fields(changed_fields))])
+    if changes:
+        sections.append(changes)
+    sections.append(
+        _render_detail_lines([
+            ("Ruang", reference.room_snapshot.name),
+            ("Keperluan", reference.title),
+        ])
+    )
+    sections.append(
+        f"<b>Jadwal:</b>\n{_format_series_schedule(bookings, changed_ids, kind == 'cancelled')}"
+    )
+    description = _render_optional_blocks([("Deskripsi", reference.description)])
+    if description:
+        sections.append(description)
+    if role == "consumption":
+        extras = _render_optional_blocks([
+            ("Fasilitas", _format_consumption_facilities(reference)),
+            ("Konsumsi", _format_consumption_note(reference)),
+        ])
+        if extras:
+            sections.append(extras)
+    numbers = ", ".join(f"#{b.booking_number}" for b in bookings)
+    sections.extend([
+        _render_detail_lines([("PIC", _format_pic(reference)), ("Booking", numbers)]),
+        _display_value(instruction),
+        BOT_NOTIFICATION_FOOTER,
+    ])
+    return "\n\n".join(sections)
+
+
+async def notify_series(
+    bookings: List[Booking],
+    role: str,
+    kind: str,
+    message_ref: Optional[TelegramMessageRef] = None,
+    changed_ids: frozenset = frozenset(),
+    changed_fields: Optional[list[str]] = None,
+):
+    """
+    Post the combined message of a booking series to one target ("main", "verification",
+    "consumption"). kind is "new", "updated" or "cancelled"; an update edits the earlier
+    message in place, the others send a new one.
+    """
+    reference = next((b for b in bookings if b.status == "active"), bookings[0])
+    chat_id = completion_targets(reference).get(role)
+    if not chat_id:
+        return None
+
+    message = _render_series_notification(bookings, role, kind, changed_ids, changed_fields)
+    if kind == "updated":
+        return await send_or_edit_telegram_message(chat_id, message, message_ref)
+    return await send_telegram_message(chat_id, message)
+
+
 def completion_targets(booking: Booking) -> Dict[str, int]:
     """Groups that should hear a booking is finished, keyed by role."""
     targets: Dict[str, int] = {}

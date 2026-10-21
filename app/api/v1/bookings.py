@@ -7,11 +7,18 @@ from app.models.booking import Booking
 from app.schemas.booking import (
     BookingCreate,
     BookingUpdate,
-    BookingResponse
+    BookingResponse,
+    BookingSeriesCreate,
+    BookingSeriesResponse
 )
 from app.services.booking_service import (
+    SeriesConflictError,
     create_booking,
+    create_booking_series,
+    get_booking_series,
     publish_booking,
+    publish_booking_series,
+    cancel_booking_series,
     update_booking,
     cancel_booking,
     delete_booking,
@@ -111,6 +118,133 @@ async def get_bookings(
     
     # Convert and return
     return [convert_booking_to_response(booking) for booking in bookings]
+
+
+def convert_series_to_response(series_id: str, bookings: List[Booking]) -> BookingSeriesResponse:
+    return BookingSeriesResponse(
+        series_id=series_id,
+        bookings=[convert_booking_to_response(booking) for booking in bookings]
+    )
+
+
+@router.post("/series", response_model=BookingSeriesResponse, status_code=status.HTTP_201_CREATED)
+async def create_new_booking_series(
+    series_data: BookingSeriesCreate,
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Create one draft booking per day (max 14) with shared details and per-day hours.
+
+    Every day is validated first. If any day is blocked (conflict, outside operating
+    hours, in the past) nothing is saved and the 409 body lists each blocked day:
+    {"message": "...", "conflicts": [{"date": "YYYY-MM-DD", "reason": "..."}]}.
+    """
+    try:
+        series_id, bookings = await create_booking_series(
+            user_id=current_user.id,
+            room_id=series_data.room_id,
+            telegram_group_id=series_data.telegram_group_id,
+            title=series_data.title,
+            slots=[(slot.start_time, slot.end_time) for slot in series_data.slots],
+            division=series_data.division,
+            description=series_data.description,
+            has_consumption=series_data.has_consumption,
+            consumption_note=series_data.consumption_note,
+            consumption_facilities=series_data.consumption_facilities,
+            consumption_group_id=series_data.consumption_group_id,
+            verification_group_id=series_data.verification_group_id,
+            is_admin=current_user.is_admin
+        )
+
+        return convert_series_to_response(series_id, bookings)
+
+    except SeriesConflictError as e:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"message": str(e), "conflicts": e.conflicts}
+        )
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(e)
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+
+@router.get("/series/{series_id}", response_model=BookingSeriesResponse)
+async def get_existing_booking_series(
+    series_id: str,
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Get every day of a booking series, ordered by start time.
+    Any authenticated user can view it, like single booking details.
+    """
+    try:
+        bookings = await get_booking_series(series_id)
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+
+    return convert_series_to_response(series_id, bookings)
+
+
+@router.post("/series/{series_id}/publish", response_model=BookingSeriesResponse)
+async def publish_existing_booking_series(
+    series_id: str,
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Publish all draft days of a series with one Telegram message per group.
+
+    Only the series owner or admin can publish.
+    """
+    try:
+        bookings = await publish_booking_series(
+            series_id=series_id,
+            user_id=current_user.id,
+            is_admin=current_user.is_admin
+        )
+
+        return convert_series_to_response(series_id, bookings)
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+
+@router.post("/series/{series_id}/cancel", response_model=BookingSeriesResponse)
+async def cancel_existing_booking_series(
+    series_id: str,
+    current_user: User = Depends(get_current_active_user)
+):
+    """
+    Cancel every active day of a series that has not ended yet.
+
+    Only the series owner or admin can cancel.
+    """
+    try:
+        bookings = await cancel_booking_series(
+            series_id=series_id,
+            user_id=current_user.id,
+            is_admin=current_user.is_admin
+        )
+
+        return convert_series_to_response(series_id, bookings)
+
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
 
 
 @router.get("/{booking_id}", response_model=BookingResponse)

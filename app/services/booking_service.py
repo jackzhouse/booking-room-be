@@ -1,8 +1,11 @@
 from datetime import datetime
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Tuple
+import logging
 import re
+from uuid import uuid4
 from bson import ObjectId
 from beanie import PydanticObjectId
+from pymongo import ReturnDocument
 
 from app.models.booking import Booking, UserSnapshot, RoomSnapshot, TelegramMessageRef
 from app.core.config import settings
@@ -20,7 +23,9 @@ from app.services.conflict_service import (
 )
 from app.services.telegram_service import (
     get_telegram_group,
+    completion_targets,
     notify_new_booking,
+    notify_series,
     notify_booking_updated,
     notify_booking_target_removed,
     notify_booking_cancelled,
@@ -28,9 +33,24 @@ from app.services.telegram_service import (
     notify_consumption_group_cancelled,
     notify_verification_group_booking,
     notify_verification_group_cancelled,
-    notify_verification_group_cleanup
+    notify_verification_group_cleanup,
+    format_date_indonesian
 )
 from app.core.config import settings
+from app.core.timezone import to_local
+
+
+logger = logging.getLogger(__name__)
+
+MAX_SERIES_DAYS = 14
+
+
+class SeriesConflictError(ValueError):
+    """A multi-day booking cannot be saved; `conflicts` lists the days that block it."""
+
+    def __init__(self, message: str, conflicts: List[dict]):
+        super().__init__(message)
+        self.conflicts = conflicts
 
 
 def _normalize_consumption_facilities(facilities: Optional[List[str]]) -> List[str]:
@@ -146,28 +166,19 @@ def format_text_with_links(text: Optional[str]) -> Optional[str]:
 async def generate_booking_number() -> str:
     """
     Generate a unique booking number in format BK-XXXXX.
-    Uses atomic increment in MongoDB settings.
+    The counter lives in a string setting, so it is incremented in one atomic
+    pipeline update; concurrent requests (e.g. a multi-day booking) never share a number.
     """
-    # Use findOneAndUpdate to atomically increment counter
-    setting = await Setting.find_one(Setting.key == "booking_counter")
-    
-    if not setting:
-        # Initialize counter if not exists
-        setting = Setting(
-            key="booking_counter",
-            value="1",
-            description="Counter untuk generate booking number"
-        )
-        await setting.insert()
-        counter = 1
-    else:
-        # Increment counter
-        counter = int(setting.value) + 1
-        setting.value = str(counter)
-        await setting.save()
-    
-    # Format as BK-XXXXX (zero-padded 5 digits)
-    return f"BK-{counter:05d}"
+    counter_doc = await Setting.get_motor_collection().find_one_and_update(
+        {"key": "booking_counter"},
+        [{"$set": {
+            "value": {"$toString": {"$add": [{"$toInt": {"$ifNull": ["$value", "0"]}}, 1]}},
+            "description": {"$ifNull": ["$description", "Counter untuk generate booking number"]},
+        }}],
+        upsert=True,
+        return_document=ReturnDocument.AFTER,
+    )
+    return f"BK-{int(counter_doc['value']):05d}"
 
 
 async def create_booking(
@@ -184,7 +195,8 @@ async def create_booking(
     consumption_facilities: Optional[List[str]] = None,
     consumption_group_id: Optional[int] = None,
     verification_group_id: Optional[int] = None,
-    is_admin: bool = False
+    is_admin: bool = False,
+    series_id: Optional[str] = None
 ) -> Booking:
     """
     Create a new booking with validation.
@@ -297,7 +309,8 @@ async def create_booking(
         consumption_note=consumption_note,
         consumption_facilities=selected_consumption_facilities,
         consumption_group_id=final_consumption_group_id,
-        verification_group_id=final_verification_group_id
+        verification_group_id=final_verification_group_id,
+        series_id=series_id
     )
     
     await booking.insert()
@@ -324,6 +337,309 @@ async def create_booking(
     return booking
 
 
+def _local_day(dt: datetime):
+    return to_local(dt).date()
+
+
+def _history_data(booking: Booking) -> HistoryData:
+    return HistoryData(
+        room_snapshot={"name": booking.room_snapshot.name},
+        start_time=booking.start_time,
+        end_time=booking.end_time,
+        title=booking.title,
+        description=booking.description,
+        division=booking.division
+    )
+
+
+async def _slot_problem(
+    room_id: str, start_time: datetime, end_time: datetime, is_admin: bool
+) -> Optional[str]:
+    """Why one day of a series cannot be booked, or None when it is free."""
+    try:
+        _validate_new_booking_start_time(start_time)
+    except ValueError as exc:
+        return str(exc)
+
+    for check in (validate_operating_hours, validate_booking_duration):
+        is_valid, error_msg = await check(start_time, end_time, is_admin)
+        if not is_valid:
+            return error_msg
+
+    has_conflict, conflicting_booking = await check_booking_conflict(
+        ObjectId(room_id), start_time, end_time
+    )
+    if has_conflict:
+        return await format_conflict_message(conflicting_booking)
+    return None
+
+
+async def _discard_bookings(bookings: List[Booking]) -> None:
+    """Best-effort undo of a half-created series (MongoDB writes here are not transactional)."""
+    for booking in bookings:
+        try:
+            await BookingHistory.find(BookingHistory.booking_id == booking.id).delete_many()
+            await booking.delete()
+        except Exception:
+            logger.exception("Could not remove booking %s while undoing a failed series", booking.booking_number)
+
+
+async def create_booking_series(
+    user_id: ObjectId,
+    room_id: str,
+    telegram_group_id: int,
+    title: str,
+    slots: List[Tuple[datetime, datetime]],
+    division: Optional[str] = None,
+    description: Optional[str] = None,
+    has_consumption: bool = False,
+    consumption_note: Optional[str] = None,
+    consumption_facilities: Optional[List[str]] = None,
+    consumption_group_id: Optional[int] = None,
+    verification_group_id: Optional[int] = None,
+    is_admin: bool = False
+) -> Tuple[str, List[Booking]]:
+    """
+    Create one draft booking per day, all sharing a series_id.
+
+    Every day is checked first; if any day is blocked nothing is saved and
+    SeriesConflictError lists each blocked day.
+
+    Raises:
+        SeriesConflictError: If one or more days fail validation
+        ValueError: If the request or shared details are invalid
+    """
+    if not slots or len(slots) > MAX_SERIES_DAYS:
+        raise ValueError(f"Pilih 1 sampai {MAX_SERIES_DAYS} hari")
+
+    ordered = sorted(slots, key=lambda slot: slot[0])
+    days = [_local_day(start) for start, _ in ordered]
+    if len(set(days)) != len(days):
+        raise ValueError("Tanggal booking tidak boleh dobel")
+    for start, end in ordered:
+        if end <= start or _local_day(end) != _local_day(start):
+            raise ValueError("Jam selesai harus setelah jam mulai pada hari yang sama")
+
+    room = await Room.get(room_id)
+    if not room:
+        raise ValueError("Ruangan tidak ditemukan")
+    if not room.is_active:
+        raise ValueError("Ruangan tidak aktif")
+
+    conflicts = []
+    for (start, end), day in zip(ordered, days):
+        reason = await _slot_problem(room_id, start, end, is_admin)
+        if reason:
+            conflicts.append({"date": day.isoformat(), "reason": reason})
+    if conflicts:
+        raise SeriesConflictError(
+            "Ada hari yang tidak bisa dibooking. Tidak ada booking yang disimpan.", conflicts
+        )
+
+    series_id = uuid4().hex
+    created: List[Booking] = []
+    try:
+        for start, end in ordered:
+            created.append(await create_booking(
+                user_id=user_id,
+                room_id=room_id,
+                telegram_group_id=telegram_group_id,
+                title=title,
+                start_time=start,
+                end_time=end,
+                division=division,
+                description=description,
+                has_consumption=has_consumption,
+                consumption_note=consumption_note,
+                consumption_facilities=consumption_facilities,
+                consumption_group_id=consumption_group_id,
+                verification_group_id=verification_group_id,
+                is_admin=is_admin,
+                series_id=series_id
+            ))
+    except Exception:
+        await _discard_bookings(created)
+        raise
+
+    return series_id, created
+
+
+async def get_booking_series(series_id: str) -> List[Booking]:
+    """All days of a series ordered by start time."""
+    members = await Booking.find(Booking.series_id == series_id).sort(Booking.start_time).to_list()
+    if not members:
+        raise ValueError("Seri booking tidak ditemukan")
+    return members
+
+
+async def _get_owned_series(series_id: str, user_id: ObjectId, is_admin: bool, denied: str) -> List[Booking]:
+    members = await get_booking_series(series_id)
+    if members[0].user_id != user_id and not is_admin:
+        raise ValueError(denied)
+    return members
+
+
+def _series_message_ref(members: List[Booking], role: str) -> Optional[TelegramMessageRef]:
+    """Every day of a published series points at the same message; take the first one recorded."""
+    for member in members:
+        ref = _message_ref(member, role)
+        if ref:
+            return ref
+    return None
+
+
+async def _store_series_refs(members: List[Booking], refs: Dict[str, object]) -> None:
+    for member in members:
+        await _store_message_refs(member, refs)
+
+
+async def _refresh_series_messages(
+    series_id: str,
+    changed_ids: frozenset = frozenset(),
+    changed_fields: Optional[list[str]] = None,
+) -> None:
+    """Re-render the combined message of a published series and edit it in place."""
+    members = await get_booking_series(series_id)
+    reference = next((m for m in members if m.status == "active"), members[0])
+    if not reference.published:
+        return
+
+    refs: Dict[str, object] = {}
+    for role in completion_targets(reference):
+        refs[role] = await notify_series(
+            members,
+            role,
+            "updated",
+            message_ref=_series_message_ref(members, role),
+            changed_ids=changed_ids,
+            changed_fields=changed_fields,
+        )
+    await _store_series_refs(members, refs)
+
+
+def _ensure_series_member_edit(
+    booking: Booking,
+    *,
+    room_id: Optional[str],
+    telegram_group_id: Optional[int],
+    title: Optional[str],
+    division: Optional[str],
+    description: Optional[str],
+    has_consumption: Optional[bool],
+    consumption_note: Optional[str],
+    consumption_facilities: Optional[List[str]],
+    consumption_group_id: Optional[int],
+    verification_group_id: Optional[int],
+    start_time: Optional[datetime],
+    end_time: Optional[datetime],
+) -> None:
+    """A day of a series may only change its hours: details are shared with the group message."""
+    shared = [
+        ("ruangan", room_id, str(booking.room_id)),
+        ("grup utama", telegram_group_id, booking.telegram_group_id),
+        ("judul", title.title() if title else title, booking.title),
+        ("divisi", division, booking.division),
+        ("deskripsi", format_text_with_links(description), booking.description),
+        ("status konsumsi", has_consumption, booking.has_consumption),
+        ("isi konsumsi", consumption_note, booking.consumption_note),
+        (
+            "fasilitas konsumsi",
+            _normalize_consumption_facilities(consumption_facilities)
+            if consumption_facilities is not None
+            else None,
+            booking.consumption_facilities,
+        ),
+        ("grup konsumsi", consumption_group_id, booking.consumption_group_id),
+        ("grup verifikasi", verification_group_id, booking.verification_group_id),
+    ]
+    # "" and None both mean "empty" when comparing against the stored value
+    changed = [
+        label for label, new, old in shared
+        if new is not None and (new or None) != (old or None)
+    ]
+    if changed:
+        raise ValueError(
+            "Booking bagian dari seri, hanya jam yang bisa diubah. Tidak bisa mengubah: "
+            + ", ".join(changed)
+        )
+
+    day = _local_day(booking.start_time)
+    if any(value is not None and _local_day(value) != day for value in (start_time, end_time)):
+        raise ValueError(
+            "Tanggal booking dalam seri tidak bisa diubah. Batalkan hari ini dan buat booking baru."
+        )
+
+
+async def publish_booking_series(
+    series_id: str,
+    user_id: ObjectId,
+    is_admin: bool = False
+) -> List[Booking]:
+    """
+    Publish every draft day of a series and post one combined message per Telegram target.
+
+    Raises:
+        ValueError: If the series is not found, has no draft days, or no permission
+    """
+    members = await _get_owned_series(
+        series_id, user_id, is_admin, "Anda tidak memiliki akses untuk mempublish booking ini"
+    )
+    drafts = [m for m in members if m.status == "active" and not m.published]
+    if not drafts:
+        raise ValueError("Booking sudah dipublish")
+
+    now = datetime.now(settings.timezone)
+    for member in drafts:
+        member.published = True
+        member.updated_at = now
+        await member.save()
+        await create_history(
+            booking_id=member.id,
+            booking_number=member.booking_number,
+            changed_by=user_id,
+            action="published",
+            new_data=_history_data(member)
+        )
+
+    refs: Dict[str, object] = {}
+    for role in completion_targets(drafts[0]):
+        refs[role] = await notify_series(members, role, "new")
+    await _store_series_refs(members, refs)
+
+    return members
+
+
+async def cancel_booking_series(
+    series_id: str,
+    user_id: ObjectId,
+    is_admin: bool = False
+) -> List[Booking]:
+    """
+    Cancel every active day of a series that has not ended yet. A published series
+    gets one new cancellation message per target; the combined message is edited too.
+
+    Raises:
+        ValueError: If the series is not found, nothing can be cancelled, or no permission
+    """
+    members = await _get_owned_series(
+        series_id, user_id, is_admin, "Anda tidak memiliki akses untuk membatalkan booking ini"
+    )
+    now = datetime.now(settings.timezone)
+    cancellable = [m for m in members if m.status == "active" and to_local(m.end_time) > now]
+    if not cancellable:
+        raise ValueError("Tidak ada hari yang bisa dibatalkan")
+
+    for member in cancellable:
+        await _mark_cancelled(member, user_id)
+
+    if cancellable[0].published:
+        for role in completion_targets(cancellable[0]):
+            await notify_series(cancellable, role, "cancelled")
+        await _refresh_series_messages(series_id)
+
+    return await get_booking_series(series_id)
+
+
 async def publish_booking(
     booking_id: str,
     user_id: ObjectId,
@@ -347,6 +663,10 @@ async def publish_booking(
         raise ValueError("Booking tidak ditemukan")
     
     _ensure_active_booking(booking)
+
+    if getattr(booking, "series_id", None):
+        members = await publish_booking_series(booking.series_id, user_id, is_admin)
+        return next(m for m in members if m.id == booking.id)
     
     if booking.published:
         raise ValueError("Booking sudah dipublish")
@@ -525,6 +845,23 @@ async def update_booking(
     # Check ownership or admin
     if booking.user_id != user_id and not is_admin:
         raise ValueError("Anda tidak memiliki akses untuk mengubah booking ini")
+
+    if getattr(booking, "series_id", None):
+        _ensure_series_member_edit(
+            booking,
+            room_id=room_id,
+            telegram_group_id=telegram_group_id,
+            title=title,
+            division=division,
+            description=description,
+            has_consumption=has_consumption,
+            consumption_note=consumption_note,
+            consumption_facilities=consumption_facilities,
+            consumption_group_id=consumption_group_id,
+            verification_group_id=verification_group_id,
+            start_time=start_time,
+            end_time=end_time,
+        )
     
     # Get user info for admin check
     user = await User.get(user_id)
@@ -670,7 +1007,14 @@ async def update_booking(
     )
     
     # Send notification only if booking is published (not draft)
-    if booking.published:
+    if booking.published and getattr(booking, "series_id", None):
+        if booking.start_time != old_start_time or booking.end_time != old_end_time:
+            await _refresh_series_messages(
+                booking.series_id,
+                changed_ids=frozenset({booking.id}),
+                changed_fields=[f"jadwal {format_date_indonesian(booking.start_time)}"],
+            )
+    elif booking.published:
         room_changed = booking.room_id != old_room_id
         title_changed = booking.title != old_title
         division_changed = booking.division != old_division
@@ -744,6 +1088,28 @@ async def update_booking(
     return booking
 
 
+async def _mark_cancelled(booking: Booking, user_id: ObjectId) -> None:
+    """Set a booking cancelled and record it in the history."""
+    booking.status = "cancelled"
+    booking.cancelled_at = datetime.now(settings.timezone)
+    booking.cancelled_by = user_id
+    booking.updated_at = datetime.now(settings.timezone)
+    await booking.save()
+
+    await create_history(
+        booking_id=booking.id,
+        booking_number=booking.booking_number,
+        changed_by=user_id,
+        action="cancelled",
+        old_data=HistoryData(
+            room_snapshot={"name": booking.room_snapshot.name},
+            start_time=booking.start_time,
+            end_time=booking.end_time,
+            title=booking.title
+        )
+    )
+
+
 async def cancel_booking(
     booking_id: str,
     user_id: ObjectId,
@@ -772,26 +1138,7 @@ async def cancel_booking(
     if booking.user_id != user_id and not is_admin:
         raise ValueError("Anda tidak memiliki akses untuk membatalkan booking ini")
     
-    # Cancel booking
-    booking.status = "cancelled"
-    booking.cancelled_at = datetime.now(settings.timezone)
-    booking.cancelled_by = user_id
-    booking.updated_at = datetime.now(settings.timezone)
-    await booking.save()
-    
-    # Create history record
-    await create_history(
-        booking_id=booking.id,
-        booking_number=booking.booking_number,
-        changed_by=user_id,
-        action="cancelled",
-        old_data=HistoryData(
-            room_snapshot={"name": booking.room_snapshot.name},
-            start_time=booking.start_time,
-            end_time=booking.end_time,
-            title=booking.title
-        )
-    )
+    await _mark_cancelled(booking, user_id)
     
     # Send notifications only for published bookings
     if booking.published:
@@ -802,6 +1149,9 @@ async def cancel_booking(
 
         if booking.has_consumption and booking.consumption_group_id:
             await notify_consumption_group_cancelled(booking)
+
+        if getattr(booking, "series_id", None):
+            await _refresh_series_messages(booking.series_id)
 
     return booking
 

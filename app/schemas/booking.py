@@ -35,6 +35,27 @@ class BookingCreate(BaseModel):
     verification_group_id: Optional[int] = None  # Optional: override default verification group
 
 
+class BookingSlot(BaseModel):
+    """One day of a multi-day booking"""
+    start_time: datetime
+    end_time: datetime
+
+
+class BookingSeriesCreate(BaseModel):
+    """Schema for creating one booking per day with shared details"""
+    room_id: str
+    telegram_group_id: int
+    title: str
+    division: Optional[str] = None
+    description: Optional[str] = None
+    slots: List[BookingSlot] = Field(min_length=1)
+    has_consumption: bool = False
+    consumption_note: Optional[str] = None
+    consumption_facilities: List[str] = Field(default_factory=list)
+    consumption_group_id: Optional[int] = None
+    verification_group_id: Optional[int] = None
+
+
 class BookingUpdate(BaseModel):
     """Schema for updating an existing booking"""
     room_id: Optional[str] = None
@@ -78,9 +99,17 @@ class BookingResponse(BaseModel):
     consumption_group_id: Optional[int] = None
     verification_group_id: Optional[int] = None
     hrd_notified: bool = False
+    series_id: Optional[str] = None
     created_at: datetime
     updated_at: datetime
-    
+
+
+class BookingSeriesResponse(BaseModel):
+    """Bookings of one series, ordered by start time"""
+    series_id: str
+    bookings: List[BookingResponse]
+
+
 class ConflictResponse(BaseModel):
     """Response schema when booking conflicts occur"""
     detail: str
