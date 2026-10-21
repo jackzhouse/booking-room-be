@@ -199,6 +199,7 @@ def test_publish_single_day_of_a_series_publishes_the_whole_series(monkeypatch):
 def test_series_day_cannot_change_shared_details_or_move_date(monkeypatch):
     booking = _member(9)
     _install_common_mocks(monkeypatch, booking, [])
+    _install_series(monkeypatch, [booking, _member(10)])
 
     for kwargs, expected in (
         ({"title": "Judul Lain"}, "Tidak bisa mengubah: judul"),
@@ -222,6 +223,7 @@ def test_series_day_cannot_change_shared_details_or_move_date(monkeypatch):
 def test_series_day_hours_edit_the_combined_message_instead_of_sending_new_ones(monkeypatch):
     booking = _member(9, published=True)
     _install_common_mocks(monkeypatch, booking, [])
+    _install_series(monkeypatch, [booking, _member(10, published=True)])
 
     async def fake_valid(*args, **kwargs):
         return True, None
@@ -337,3 +339,44 @@ def test_series_update_edits_earlier_message_and_new_or_cancelled_send_fresh_one
     asyncio.run(telegram_service.notify_series(members, "main", "cancelled"))
 
     assert len(edited) == 1 and len(sent) == 2
+
+
+def test_draft_series_day_edits_details_and_copies_them_to_other_draft_days(monkeypatch):
+    days = [_member(9, published=False), _member(10, published=False), _member(11, published=True)]
+    booking = days[0]
+    _install_common_mocks(monkeypatch, booking, [])
+    _install_series(monkeypatch, days)
+    for member in days[1:]:
+        member.save = AsyncMock()
+
+    asyncio.run(
+        booking_service.update_booking(
+            booking_id=str(booking.id), user_id=booking.user_id, title="judul baru", description="Deskripsi baru"
+        )
+    )
+
+    assert booking.title == "Judul Baru"
+    assert days[1].title == "Judul Baru"
+    assert days[1].description == booking.description
+    days[1].save.assert_awaited_once()
+    assert days[2].title != "Judul Baru"
+    days[2].save.assert_not_called()
+
+
+def test_series_that_lost_its_other_days_edits_like_a_plain_booking(monkeypatch):
+    booking = _member(9, published=True)
+    _install_common_mocks(monkeypatch, booking, [])
+    _install_series(monkeypatch, [booking])
+
+    async def fake_valid(*args, **kwargs):
+        return True, None
+
+    monkeypatch.setattr(booking_service, "validate_operating_hours", fake_valid)
+    monkeypatch.setattr(booking_service, "validate_booking_duration", fake_valid)
+    monkeypatch.setattr(
+        booking_service, "_refresh_series_messages", create_autospec(booking_service._refresh_series_messages, spec_set=True)
+    )
+
+    asyncio.run(booking_service.update_booking(booking_id=str(booking.id), user_id=booking.user_id, title="judul baru"))
+
+    assert booking.title == "Judul Baru"

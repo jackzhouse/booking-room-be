@@ -520,7 +520,10 @@ def _ensure_series_member_edit(
     start_time: Optional[datetime],
     end_time: Optional[datetime],
 ) -> None:
-    """A day of a series may only change its hours: details are shared with the group message."""
+    """A published day of a series may only change its hours: details are shared with the group message.
+
+    A draft has sent no message yet, so its details stay editable (update_booking copies them to the other draft days).
+    """
     shared = [
         ("ruangan", room_id, str(booking.room_id)),
         ("grup utama", telegram_group_id, booking.telegram_group_id),
@@ -544,7 +547,7 @@ def _ensure_series_member_edit(
         label for label, new, old in shared
         if new is not None and (new or None) != (old or None)
     ]
-    if changed:
+    if changed and booking.published:
         raise ValueError(
             "Booking bagian dari seri, hanya jam yang bisa diubah. Tidak bisa mengubah: "
             + ", ".join(changed)
@@ -833,7 +836,9 @@ async def update_booking(
     if booking.user_id != user_id and not is_admin:
         raise ValueError("Anda tidak memiliki akses untuk mengubah booking ini")
 
-    if getattr(booking, "series_id", None):
+    # A series that lost its other days reads as a plain booking.
+    series_days = await get_booking_series(booking.series_id) if getattr(booking, "series_id", None) else []
+    if len(series_days) > 1:
         _ensure_series_member_edit(
             booking,
             room_id=room_id,
@@ -967,13 +972,35 @@ async def update_booking(
         update_data["start_time"] = new_start
         update_data["end_time"] = new_end
     
+    # Draft days of a series share their details: carry them to the other draft days.
+    sibling_days: List[Booking] = []
+    if len(series_days) > 1 and not booking.published:
+        shared_update = {k: v for k, v in update_data.items() if k not in ("start_time", "end_time")}
+        sibling_days = [
+            member for member in series_days
+            if member.id != booking.id and member.status == "active" and not member.published
+        ]
+        if "room_id" in shared_update:
+            for member in sibling_days:
+                has_conflict, conflicting_booking = await check_booking_conflict(
+                    room_id_obj, member.start_time, member.end_time, exclude_booking_id=member.id
+                )
+                if has_conflict:
+                    raise ValueError(await format_conflict_message(conflicting_booking))
+
     # Apply updates
     for field, value in update_data.items():
         setattr(booking, field, value)
-    
+
     booking.updated_at = datetime.now(settings.timezone)
     await booking.save()
-    
+
+    for member in sibling_days:
+        for field, value in shared_update.items():
+            setattr(member, field, value)
+        member.updated_at = booking.updated_at
+        await member.save()
+
     # Create history record
     await create_history(
         booking_id=booking.id,
